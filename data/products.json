@@ -1,0 +1,1678 @@
+[
+ {
+  "id": "pan_di_stelle",
+  "category": "dolci",
+  "name": "Biscotti Pan di Stelle – Mulino Bianco",
+  "source": "openfoodfacts",
+  "barcode": "8076809580748",
+  "quantity": "350",
+  "nutrients": {
+   "energyKcal": 485,
+   "protein": 7.8,
+   "carbs": 64,
+   "sugars": 24,
+   "fat": 21,
+   "satFat": 7.4,
+   "fiber": 4.2,
+   "salt": 0.44
+  },
+  "nutriscore": {
+   "points": 19,
+   "grade": "e",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e322",
+   "e500",
+   "e503"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/807/680/958/0748/front_en.22.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "tonno_rio_mare",
+  "category": "proteine",
+  "name": "Tonno all'olio di oliva – Rio Mare",
+  "source": "openfoodfacts",
+  "barcode": "8004030044005",
+  "quantity": "160 g",
+  "nutrients": {
+   "energyKcal": 275,
+   "protein": 17,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 21,
+   "satFat": 6,
+   "fiber": 0,
+   "salt": 0.00275
+  },
+  "nutriscore": {
+   "points": 2,
+   "grade": "b",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/403/004/4005/front_en.49.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "zeropiu_balocco",
+  "category": "dolci",
+  "name": "Zeropiù con cioccolato – Balocco (6×35 g)",
+  "source": "openfoodfacts",
+  "barcode": "2000000150781",
+  "quantity": "35g",
+  "nutrients": {
+   "energyKcal": 452,
+   "protein": 6.3,
+   "carbs": 65,
+   "sugars": 1.3,
+   "fat": 19,
+   "satFat": 3.6,
+   "fiber": 8.3,
+   "salt": 0.68
+  },
+  "nutriscore": {
+   "points": 6,
+   "grade": "c",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e322",
+   "e500",
+   "e503",
+   "e965"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "misura_avena",
+  "category": "dolci",
+  "name": "Biscotti gocce di cioccolato e avena – Misura",
+  "source": "openfoodfacts",
+  "barcode": "8002590081829",
+  "quantity": "",
+  "nutrients": {
+   "energyKcal": 472.222222222222,
+   "protein": 25,
+   "carbs": 48.6111111111111,
+   "sugars": 19.4444444444444,
+   "fat": 18.0555555555556,
+   "satFat": 4.16666666666667,
+   "fiber": 5.55555555555556,
+   "salt": 0.79
+  },
+  "nutriscore": {
+   "points": 14,
+   "grade": "d",
+   "estimated": true
+  },
+  "nova": 4,
+  "additives": [
+   "e450",
+   "e500",
+   "e503"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/259/008/1829/front_en.24.200.jpg",
+  "flags": [
+   "Su Open Food Facts il sale è 7,9 g/100 g: è quasi certamente un errore (10 volte il reale). Ho usato 0,79 g. Da verificare in etichetta."
+  ]
+ },
+ {
+  "id": "dolciando_cacao_nocciole",
+  "category": "dolci",
+  "name": "Frollini cacao e nocciole – Dolciando (Eurospin)",
+  "source": "openfoodfacts",
+  "barcode": "8017596003133",
+  "quantity": "700g",
+  "nutrients": {
+   "energyKcal": 482,
+   "protein": 6.7,
+   "carbs": 67,
+   "sugars": 26,
+   "fat": 20,
+   "satFat": 9,
+   "fiber": 3.5,
+   "salt": 0.45
+  },
+  "nutriscore": {
+   "points": 22,
+   "grade": "e",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/801/759/600/3133/front_en.53.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "mezzi_rigatoni_integrali",
+  "category": "cereali",
+  "name": "Mezzi rigatoni integrali – De Cecco",
+  "source": "openfoodfacts",
+  "barcode": "8001250006271",
+  "quantity": "500g",
+  "nutrients": {
+   "energyKcal": 345,
+   "protein": 15,
+   "carbs": 61,
+   "sugars": 2.4,
+   "fat": 2.8,
+   "satFat": 0.6,
+   "fiber": 8,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": -7,
+   "grade": "a",
+   "estimated": false
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/125/000/6271/front_it.40.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "mutti_datterini",
+  "category": "condimenti",
+  "name": "Salsa pronta datterini – Mutti",
+  "source": "openfoodfacts",
+  "barcode": "8005110172052",
+  "quantity": "300 g",
+  "nutrients": {
+   "energyKcal": 46,
+   "protein": 1.4,
+   "carbs": 6.7,
+   "sugars": 6.1,
+   "fat": 1.1,
+   "satFat": 0.2,
+   "fiber": 0,
+   "salt": 0.4925
+  },
+  "nutriscore": {
+   "points": -2,
+   "grade": "a",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/511/017/2052/front_it.31.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "pesto_senza_aglio",
+  "category": "condimenti",
+  "name": "Gran pesto alla genovese senz'aglio – Tigullio",
+  "source": "openfoodfacts",
+  "barcode": "80037019",
+  "quantity": "190 g",
+  "nutrients": {
+   "energyKcal": 470,
+   "protein": 7.1,
+   "carbs": 8.4,
+   "sugars": 7.6,
+   "fat": 45,
+   "satFat": 5.7,
+   "fiber": 1.4,
+   "salt": 2.5
+  },
+  "nutriscore": {
+   "points": 24,
+   "grade": "e",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e270"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/000/008/003/7019/front_it.54.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "burro_conad",
+  "category": "condimenti",
+  "name": "Burro – Conad (125 g)",
+  "source": "openfoodfacts",
+  "barcode": "8003170052772",
+  "quantity": "125g",
+  "nutrients": {
+   "energyKcal": 743,
+   "protein": 0.8,
+   "carbs": 0.5,
+   "sugars": 0.5,
+   "fat": 82,
+   "satFat": 59,
+   "fiber": 0,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": 20,
+   "grade": "e",
+   "estimated": false
+  },
+  "nova": 2,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/317/005/2772/front_it.8.200.jpg",
+  "flags": [
+   "Trovato come \"Burro senza lattosio\" Conad 125 g: i valori nutrizionali sono uguali al burro normale."
+  ]
+ },
+ {
+  "id": "mutti_triplo_concentrato",
+  "category": "condimenti",
+  "name": "Triplo concentrato di pomodoro – Mutti",
+  "source": "openfoodfacts",
+  "barcode": "8005110140013",
+  "quantity": "200g",
+  "nutrients": {
+   "energyKcal": 127,
+   "protein": 5.7,
+   "carbs": 23,
+   "sugars": 16,
+   "fat": 0.2,
+   "satFat": 0.1,
+   "fiber": 0,
+   "salt": 0.5
+  },
+  "nutriscore": {
+   "points": 0,
+   "grade": "a",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/511/014/0013/front_en.165.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "cracker_integrali",
+  "category": "cereali",
+  "name": "Cracker integrali – Mulino Bianco",
+  "source": "openfoodfacts",
+  "barcode": "8076809516655",
+  "quantity": "500 g",
+  "nutrients": {
+   "energyKcal": 396,
+   "protein": 14,
+   "carbs": 61,
+   "sugars": 2.5,
+   "fat": 8,
+   "satFat": 1.2,
+   "fiber": 11,
+   "salt": 1.6
+  },
+  "nutriscore": {
+   "points": 8,
+   "grade": "c",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e392",
+   "e500"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/807/680/951/6655/front_en.6.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "farina_00",
+  "category": "cereali",
+  "name": "Farina 00 – Eurospin",
+  "source": "openfoodfacts",
+  "barcode": "8017596002617",
+  "quantity": "1kg",
+  "nutrients": {
+   "energyKcal": 340,
+   "protein": 9.4,
+   "carbs": 72,
+   "sugars": 0.5,
+   "fat": 1,
+   "satFat": 0.2,
+   "fiber": 2.5,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": 1,
+   "grade": "b",
+   "estimated": false
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/801/759/600/2617/front_it.39.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "risette",
+  "category": "cereali",
+  "name": "Risette 100% riso Bio – Riso Scotti",
+  "source": "openfoodfacts",
+  "barcode": "8001860355028",
+  "quantity": "150 g",
+  "nutrients": {
+   "energyKcal": 378.947368421053,
+   "protein": 7.8,
+   "carbs": 83,
+   "sugars": 0.2,
+   "fat": 1.6,
+   "satFat": 0.5,
+   "fiber": 1.6,
+   "salt": 0.5
+  },
+  "nutriscore": {
+   "points": 3,
+   "grade": "c",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": true,
+  "image": "https://images.openfoodfacts.org/images/products/800/186/035/5028/front_it.72.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "grissini_sesamo",
+  "category": "cereali",
+  "name": "Grissini al sesamo – Eurospin",
+  "source": "openfoodfacts",
+  "barcode": "8017596010506",
+  "quantity": "200 g",
+  "nutrients": {
+   "energyKcal": 420,
+   "protein": 15,
+   "carbs": 66,
+   "sugars": 2.9,
+   "fat": 9.7,
+   "satFat": 1.8,
+   "fiber": 4.4,
+   "salt": 2.1
+  },
+  "nutriscore": {
+   "points": 14,
+   "grade": "d",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/801/759/601/0506/front_fr.18.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "latte_ps",
+  "category": "latticini",
+  "name": "Latte parzialmente scremato – Conad",
+  "source": "openfoodfacts",
+  "barcode": "8003170014312",
+  "quantity": "1000 ml",
+  "nutrients": {
+   "energyKcal": 48,
+   "protein": 3.2,
+   "carbs": 5.1,
+   "sugars": 5.1,
+   "fat": 1.6,
+   "satFat": 1.2,
+   "fiber": 0,
+   "salt": 0.0975
+  },
+  "nutriscore": {
+   "points": 1,
+   "grade": "b",
+   "estimated": false
+  },
+  "nova": 1,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/317/001/4312/front_it.57.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "mandorle",
+  "category": "frutta_secca",
+  "name": "Mandorle sgusciate – Conad",
+  "source": "openfoodfacts",
+  "barcode": "80037507",
+  "quantity": "250g",
+  "nutrients": {
+   "energyKcal": 595,
+   "protein": 21,
+   "carbs": 9.1,
+   "sugars": 4.4,
+   "fat": 50,
+   "satFat": 3.8,
+   "fiber": 13,
+   "salt": 0.05
+  },
+  "nutriscore": {
+   "points": -10,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": 1,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/000/008/003/7507/front_it.46.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "fresca_mayo",
+  "category": "condimenti",
+  "name": "Fresca Mayò – Calvè",
+  "source": "openfoodfacts",
+  "barcode": "8722700619093",
+  "quantity": "250ml",
+  "nutrients": {
+   "energyKcal": 300,
+   "protein": 1.5,
+   "carbs": 12,
+   "sugars": 8,
+   "fat": 27,
+   "satFat": 3.5,
+   "fiber": 0,
+   "salt": 1.5
+  },
+  "nutriscore": {
+   "points": 15,
+   "grade": "d",
+   "estimated": false
+  },
+  "nova": null,
+  "additives": [
+   "e14xx"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/872/270/061/9093/front_fr.9.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "nutella",
+  "category": "dolci",
+  "name": "Nutella – Ferrero",
+  "source": "openfoodfacts",
+  "barcode": "3017620422003",
+  "quantity": "400 g e",
+  "nutrients": {
+   "energyKcal": 539,
+   "protein": 6.3,
+   "carbs": 57.5,
+   "sugars": 56.3,
+   "fat": 30.9,
+   "satFat": 10.6,
+   "fiber": 0,
+   "salt": 0.107
+  },
+  "nutriscore": {
+   "points": 31,
+   "grade": "e",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e322"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/301/762/042/2003/front_en.879.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "soffritto",
+  "category": "verdure",
+  "name": "Misto per soffritto – Conad",
+  "source": "openfoodfacts",
+  "barcode": "8003170016668",
+  "quantity": "150 g",
+  "nutrients": {
+   "energyKcal": 28,
+   "protein": 0.7,
+   "carbs": 5,
+   "sugars": 4.9,
+   "fat": 0.2,
+   "satFat": 0,
+   "fiber": 0,
+   "salt": 0.16
+  },
+  "nutriscore": {
+   "points": -4,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/317/001/6668/front_it.3.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "stelline",
+  "category": "cereali",
+  "name": "Stelline – Barilla",
+  "source": "openfoodfacts",
+  "barcode": "8076800315271",
+  "quantity": "500g",
+  "nutrients": {
+   "energyKcal": 359,
+   "protein": 11.5,
+   "carbs": 72.2,
+   "sugars": 3.5,
+   "fat": 2,
+   "satFat": 0.5,
+   "fiber": 3,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": 1,
+   "grade": "b",
+   "estimated": false
+  },
+  "nova": 1,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/807/680/031/5271/front_it.53.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "granpiada",
+  "category": "cereali",
+  "name": "Granpiada all'olio EVO – Roberto",
+  "source": "openfoodfacts",
+  "barcode": "8003490044785",
+  "quantity": "330g",
+  "nutrients": {
+   "energyKcal": 313,
+   "protein": 7.8,
+   "carbs": 49,
+   "sugars": 0.3,
+   "fat": 8.3,
+   "satFat": 1.2,
+   "fiber": 1.5,
+   "salt": 1.2
+  },
+  "nutriscore": {
+   "points": 6,
+   "grade": "c",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e330",
+   "e392",
+   "e412",
+   "e422",
+   "e471"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/349/004/4785/front_en.63.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "piadelle_integrali",
+  "category": "cereali",
+  "name": "Piadelle integrali – Mulino Bianco",
+  "source": "openfoodfacts",
+  "barcode": "8076809571500",
+  "quantity": "3 piadelle 225g",
+  "nutrients": {
+   "energyKcal": 338,
+   "protein": 9.7,
+   "carbs": 41.6,
+   "sugars": 0.5,
+   "fat": 13.5,
+   "satFat": 1.6,
+   "fiber": 5.7,
+   "salt": 1.15
+  },
+  "nutriscore": {
+   "points": 3,
+   "grade": "c",
+   "estimated": false
+  },
+  "nova": 3,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/807/680/957/1500/front_it.32.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "dessert_proteico_lidl",
+  "category": "latticini",
+  "name": "Dessert proteico cioccolato – Lidl (Milbona)",
+  "source": "openfoodfacts",
+  "barcode": "4056489216162",
+  "quantity": "200g",
+  "nutrients": {
+   "energyKcal": 76,
+   "protein": 10,
+   "carbs": 5.2,
+   "sugars": 4,
+   "fat": 1.5,
+   "satFat": 1,
+   "fiber": 0.9,
+   "salt": 0.12
+  },
+  "nutriscore": {
+   "points": -3,
+   "grade": "a",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e14xx",
+   "e407",
+   "e466",
+   "e950",
+   "e955"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/405/648/921/6162/front_en.329.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "pro_high_cacao",
+  "category": "latticini",
+  "name": "Pro High crema dessert al cacao – Milk Pro",
+  "source": "openfoodfacts",
+  "barcode": "8034066371714",
+  "quantity": "200 g",
+  "nutrients": {
+   "energyKcal": 84,
+   "protein": 10.2,
+   "carbs": 6.5,
+   "sugars": 4.2,
+   "fat": 1.5,
+   "satFat": 1,
+   "fiber": 0,
+   "salt": 0.18
+  },
+  "nutriscore": {
+   "points": -2,
+   "grade": "a",
+   "estimated": false
+  },
+  "nova": 4,
+  "additives": [
+   "e14xx",
+   "e331",
+   "e407",
+   "e412",
+   "e950",
+   "e955"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/803/406/637/1714/front_it.136.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "provola",
+  "category": "latticini",
+  "name": "Provola affumicata – Eurospin",
+  "source": "openfoodfacts",
+  "barcode": "8017596101082",
+  "quantity": "",
+  "nutrients": {
+   "energyKcal": 317,
+   "protein": 22,
+   "carbs": 0.5,
+   "sugars": 0.5,
+   "fat": 25,
+   "satFat": 17,
+   "fiber": 0,
+   "salt": 1
+  },
+  "nutriscore": {
+   "points": 10,
+   "grade": "c",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/801/759/610/1082/front_it.3.200.jpg",
+  "flags": [
+   "Ingredienti non presenti su Open Food Facts: additivi non verificabili."
+  ]
+ },
+ {
+  "id": "basmati_integrale",
+  "category": "cereali",
+  "name": "Riso basmati integrale – Conad",
+  "source": "openfoodfacts",
+  "barcode": "8003170085008",
+  "quantity": "500 g",
+  "nutrients": {
+   "energyKcal": 358,
+   "protein": 8.8,
+   "carbs": 71,
+   "sugars": 0.7,
+   "fat": 3.4,
+   "satFat": 0.8,
+   "fiber": 4,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": -1,
+   "grade": "b",
+   "estimated": false
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/800/317/008/5008/front_it.3.200.jpg",
+  "flags": []
+ },
+ {
+  "id": "wurstel_tobias",
+  "category": "proteine",
+  "name": "Wurstel Tobias – Eurospin (2×100 g)",
+  "source": "openfoodfacts",
+  "barcode": "8017596009029",
+  "quantity": "2 x 100 g",
+  "nutrients": {
+   "energyKcal": 186,
+   "protein": 12,
+   "carbs": 3,
+   "sugars": 0.6,
+   "fat": 14,
+   "satFat": 4.2,
+   "fiber": 0,
+   "salt": 2.5575
+  },
+  "nutriscore": {
+   "points": 18,
+   "grade": "d",
+   "estimated": false
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": "https://images.openfoodfacts.org/images/products/801/759/600/9029/front_it.14.200.jpg",
+  "flags": [
+   "Ingredienti non presenti su Open Food Facts. I würstel contengono quasi sempre nitrito (E250): controlla l'etichetta, il punteggio potrebbe scendere sotto 50."
+  ]
+ },
+ {
+  "id": "banana",
+  "category": "frutta",
+  "name": "Banane – Chiquita",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 65,
+   "protein": 1.2,
+   "carbs": 15.4,
+   "sugars": 15.4,
+   "fat": 0.3,
+   "satFat": 0.1,
+   "fiber": 1.8,
+   "salt": 0
+  },
+  "nutriscore": {
+   "points": -1,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "mela_golden",
+  "category": "frutta",
+  "name": "Mela Golden – Melinda",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 50,
+   "protein": 0.3,
+   "carbs": 12.5,
+   "sugars": 10,
+   "fat": 0.1,
+   "satFat": 0,
+   "fiber": 2,
+   "salt": 0
+  },
+  "nutriscore": {
+   "points": -3,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "limone",
+  "category": "frutta",
+  "name": "Limone",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 11,
+   "protein": 0.6,
+   "carbs": 2.3,
+   "sugars": 2.3,
+   "fat": 0,
+   "satFat": 0,
+   "fiber": 1.9,
+   "salt": 0
+  },
+  "nutriscore": {
+   "points": -5,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "finocchio",
+  "category": "verdure",
+  "name": "Finocchio",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 9,
+   "protein": 1.2,
+   "carbs": 1,
+   "sugars": 1,
+   "fat": 0,
+   "satFat": 0,
+   "fiber": 2.2,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": -5,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "cipolla",
+  "category": "verdure",
+  "name": "Cipolla",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 26,
+   "protein": 1,
+   "carbs": 5.7,
+   "sugars": 5.7,
+   "fat": 0.1,
+   "satFat": 0,
+   "fiber": 1.1,
+   "salt": 0.03
+  },
+  "nutriscore": {
+   "points": -4,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "insalata",
+  "category": "verdure",
+  "name": "Insalata (lattuga)",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 19,
+   "protein": 1.8,
+   "carbs": 2.2,
+   "sugars": 2.2,
+   "fat": 0.4,
+   "satFat": 0.1,
+   "fiber": 1.5,
+   "salt": 0.02
+  },
+  "nutriscore": {
+   "points": -5,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "patate",
+  "category": "verdure",
+  "name": "Patate",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 85,
+   "protein": 2.1,
+   "carbs": 18,
+   "sugars": 0.4,
+   "fat": 1,
+   "satFat": 0.2,
+   "fiber": 1.6,
+   "salt": 0.02
+  },
+  "nutriscore": {
+   "points": 1,
+   "grade": "b",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Nel calcolo nutrizionale le patate contano come amido, non come verdura."
+  ]
+ },
+ {
+  "id": "aglio",
+  "category": "aromi",
+  "name": "Aglio",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 41,
+   "protein": 0.9,
+   "carbs": 8.4,
+   "sugars": 8.4,
+   "fat": 0.6,
+   "satFat": 0.1,
+   "fiber": 2.3,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": -3,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "basilico",
+  "category": "aromi",
+  "name": "Basilico",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 23,
+   "protein": 3.1,
+   "carbs": 2.6,
+   "sugars": 0.3,
+   "fat": 0.6,
+   "satFat": 0,
+   "fiber": 1.6,
+   "salt": 0.01
+  },
+  "nutriscore": {
+   "points": -6,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "prezzemolo",
+  "category": "aromi",
+  "name": "Prezzemolo",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 30,
+   "protein": 3.7,
+   "carbs": 1.3,
+   "sugars": 0.9,
+   "fat": 0.6,
+   "satFat": 0.1,
+   "fiber": 5,
+   "salt": 0.05
+  },
+  "nutriscore": {
+   "points": -8,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "paprika",
+  "category": "aromi",
+  "name": "Paprika in polvere",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 282,
+   "protein": 14,
+   "carbs": 54,
+   "sugars": 10,
+   "fat": 13,
+   "satFat": 2.1,
+   "fiber": 35,
+   "salt": 0.2
+  },
+  "nutriscore": {
+   "points": -3,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "pepe_nero",
+  "category": "aromi",
+  "name": "Pepe nero",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 251,
+   "protein": 10,
+   "carbs": 64,
+   "sugars": 0.6,
+   "fat": 3.3,
+   "satFat": 1.4,
+   "fiber": 25,
+   "salt": 0.05
+  },
+  "nutriscore": {
+   "points": -5,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "olio_evo",
+  "category": "condimenti",
+  "name": "Olio extravergine d'oliva",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 899,
+   "protein": 0,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 99.9,
+   "satFat": 15,
+   "fiber": 0,
+   "salt": 0
+  },
+  "nutriscore": {
+   "points": 0,
+   "grade": "b",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "sale",
+  "category": "condimenti",
+  "name": "Sale",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 0,
+   "protein": 0,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 0,
+   "satFat": 0,
+   "fiber": 0,
+   "salt": 100
+  },
+  "nutriscore": {
+   "points": 20,
+   "grade": "e",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [],
+  "unrated": true
+ },
+ {
+  "id": "zucchero",
+  "category": "condimenti",
+  "name": "Zucchero",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 400,
+   "protein": 0,
+   "carbs": 100,
+   "sugars": 100,
+   "fat": 0,
+   "satFat": 0,
+   "fiber": 0,
+   "salt": 0
+  },
+  "nutriscore": {
+   "points": 19,
+   "grade": "e",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [],
+  "unrated": true
+ },
+ {
+  "id": "pan_grattato",
+  "category": "cereali",
+  "name": "Pan grattato",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 351,
+   "protein": 10.1,
+   "carbs": 73,
+   "sugars": 3.5,
+   "fat": 2.5,
+   "satFat": 0.6,
+   "fiber": 3.5,
+   "salt": 1.5
+  },
+  "nutriscore": {
+   "points": 11,
+   "grade": "d",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "pane_integrale",
+  "category": "cereali",
+  "name": "Pane integrale a fette (confezionato)",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 250,
+   "protein": 9,
+   "carbs": 41,
+   "sugars": 4,
+   "fat": 4,
+   "satFat": 0.5,
+   "fiber": 7,
+   "salt": 1.1
+  },
+  "nutriscore": {
+   "points": 2,
+   "grade": "b",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Valori medi dei pani integrali a fette confezionati. Quando lo compri, inserisci il codice a barre per avere il dato esatto."
+  ]
+ },
+ {
+  "id": "petto_pollo",
+  "category": "proteine",
+  "name": "Petto di pollo",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 100,
+   "protein": 23.3,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 0.8,
+   "satFat": 0.2,
+   "fiber": 0,
+   "salt": 0.15
+  },
+  "nutriscore": {
+   "points": -6,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "braciola_pollo",
+  "category": "proteine",
+  "name": "Braciola di pollo (coscia disossata)",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 130,
+   "protein": 19,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 6,
+   "satFat": 1.7,
+   "fiber": 0,
+   "salt": 0.2
+  },
+  "nutriscore": {
+   "points": -5,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "tritato_bovino",
+  "category": "proteine",
+  "name": "Tritato di bovino",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 215,
+   "protein": 18.5,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 15.5,
+   "satFat": 6.5,
+   "fiber": 0,
+   "salt": 0.17
+  },
+  "nutriscore": {
+   "points": 6,
+   "grade": "c",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Tritato \"normale\": circa 15% di grassi."
+  ]
+ },
+ {
+  "id": "uova",
+  "category": "proteine",
+  "name": "Uova",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 128,
+   "protein": 12.4,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 8.7,
+   "satFat": 3,
+   "fiber": 0,
+   "salt": 0.35
+  },
+  "nutriscore": {
+   "points": -1,
+   "grade": "a",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": []
+ },
+ {
+  "id": "prosciutto_cotto",
+  "category": "proteine",
+  "name": "Prosciutto cotto",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 180,
+   "protein": 20,
+   "carbs": 1,
+   "sugars": 1,
+   "fat": 11,
+   "satFat": 4,
+   "fiber": 0,
+   "salt": 2
+  },
+  "nutriscore": {
+   "points": 14,
+   "grade": "d",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [
+   "e250",
+   "e301"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Valori medi. Quasi tutti i cotti contengono nitrito (E250); esistono versioni senza nitriti con punteggio molto più alto."
+  ]
+ },
+ {
+  "id": "prosciutto_crudo_sd",
+  "category": "proteine",
+  "name": "Prosciutto crudo San Daniele",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 268,
+   "protein": 26.5,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 18,
+   "satFat": 6,
+   "fiber": 0,
+   "salt": 5.5
+  },
+  "nutriscore": {
+   "points": 28,
+   "grade": "e",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Il San Daniele DOP è solo coscia di suino e sale: nessun additivo. Il sale però è molto alto."
+  ]
+ },
+ {
+  "id": "bresaola",
+  "category": "proteine",
+  "name": "Bresaola",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 151,
+   "protein": 32,
+   "carbs": 0.4,
+   "sugars": 0.4,
+   "fat": 2.6,
+   "satFat": 1,
+   "fiber": 0,
+   "salt": 4.2
+  },
+  "nutriscore": {
+   "points": 21,
+   "grade": "e",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [
+   "e250",
+   "e252",
+   "e301"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "La bresaola contiene di solito nitriti/nitrati (E250/E252): controlla la confezione."
+  ]
+ },
+ {
+  "id": "parmigiano_grattugiato",
+  "category": "latticini",
+  "name": "Parmigiano Reggiano DOP grattugiato",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 392,
+   "protein": 33,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 28,
+   "satFat": 18,
+   "fiber": 0,
+   "salt": 1.6
+  },
+  "nutriscore": {
+   "points": 14,
+   "grade": "d",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Marca \"Pezzi Italiani\" non trovata: valori medi del Parmigiano Reggiano DOP (senza additivi per disciplinare)."
+  ]
+ },
+ {
+  "id": "guanciale",
+  "category": "proteine",
+  "name": "Guanciale – Ferrarini",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 661,
+   "protein": 10,
+   "carbs": 0,
+   "sugars": 0,
+   "fat": 69,
+   "satFat": 25,
+   "fiber": 0,
+   "salt": 4
+  },
+  "nutriscore": {
+   "points": 37,
+   "grade": "e",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [
+   "e250",
+   "e252"
+  ],
+  "additivesKnown": true,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Il guanciale Ferrarini non è su Open Food Facts: valori di un guanciale stagionato simile. Di solito contiene nitriti/nitrati."
+  ]
+ },
+ {
+  "id": "pizza_buitoni_creazione",
+  "category": "pronti",
+  "name": "Pizza Creazione salame, salsiccia piccante, provolone e cipolla – Buitoni",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 250,
+   "protein": 10,
+   "carbs": 28,
+   "sugars": 3,
+   "fat": 10.5,
+   "satFat": 4.5,
+   "fiber": 2,
+   "salt": 1.3
+  },
+  "nutriscore": {
+   "points": 13,
+   "grade": "d",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Non trovata su Open Food Facts: valori stimati da pizze surgelate simili e additivi sconosciuti. Fotografa l'etichetta per un dato preciso."
+  ]
+ },
+ {
+  "id": "riso_nero_pronto",
+  "category": "cereali",
+  "name": "Riso nero pronto in 2 minuti – Eurospin",
+  "source": "generico",
+  "barcode": null,
+  "quantity": null,
+  "nutrients": {
+   "energyKcal": 150,
+   "protein": 3.4,
+   "carbs": 30,
+   "sugars": 0.5,
+   "fat": 1.8,
+   "satFat": 0.3,
+   "fiber": 1.5,
+   "salt": 0.3
+  },
+  "nutriscore": {
+   "points": 1,
+   "grade": "b",
+   "estimated": true
+  },
+  "nova": null,
+  "additives": [],
+  "additivesKnown": false,
+  "organic": false,
+  "image": null,
+  "flags": [
+   "Non trovato su Open Food Facts: valori stimati dai risi precotti in busta. Fotografa l'etichetta per un dato preciso."
+  ]
+ }
+]

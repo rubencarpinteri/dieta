@@ -1,0 +1,54 @@
+// How a product is measured in the kitchen. step = smallest sensible increment in grams.
+// unit: a natural portion shown next to the grams (e.g. "2 uova").
+export const UNITS = {
+  uova: { step: 50, unit: ['uovo', 'uova', 50] },
+  banana: { step: 60, unit: ['banana', 'banane', 120] },
+  mela_golden: { step: 75, unit: ['mela', 'mele', 150] },
+  limone: { step: 10 },
+  pan_di_stelle: { step: 12.5, unit: ['biscotto', 'biscotti', 12.5] },
+  misura_avena: { step: 10, unit: ['biscotto', 'biscotti', 10] },
+  dolciando_cacao_nocciole: { step: 10, unit: ['frollino', 'frollini', 10] },
+  zeropiu_balocco: { step: 35, unit: ['bustina', 'bustine', 35] },
+  cracker_integrali: { step: 25, unit: ['pacchetto', 'pacchetti', 25] },
+  piadelle_integrali: { step: 75, unit: ['piadella', 'piadelle', 75] },
+  granpiada: { step: 55, unit: ['mezza piadina', 'mezze piadine', 55] },
+  pane_integrale: { step: 30, unit: ['fetta', 'fette', 30] },
+  grissini_sesamo: { step: 5, unit: ['grissino', 'grissini', 5] },
+  dessert_proteico_lidl: { step: 200, unit: ['vasetto', 'vasetti', 200] },
+  pro_high_cacao: { step: 200, unit: ['vasetto', 'vasetti', 200] },
+  tonno_rio_mare: { step: 80, unit: ['scatoletta', 'scatolette', 80] },
+  wurstel_tobias: { step: 50, unit: ['würstel', 'würstel', 50] },
+  pizza_buitoni_creazione: { step: 100 },
+  riso_nero_pronto: { step: 125, unit: ['mezza busta', 'mezze buste', 125] },
+  olio_evo: { step: 5, spoon: true },
+  burro_conad: { step: 5 },
+  sale: { step: 1 },
+  zucchero: { step: 5 },
+  mandorle: { step: 5, unit: ['mandorla', 'mandorle', 1.2] },
+  nutella: { step: 5, spoon: true },
+  pesto_senza_aglio: { step: 10 },
+  fresca_mayo: { step: 5 },
+  parmigiano_grattugiato: { step: 5 },
+  risette: { step: 10 },
+  latte_ps: { step: 50, ml: true },
+};
+
+const DEFAULT = { step: 10 };
+export const unitsFor = (id) => UNITS[id] ?? DEFAULT;
+
+/** "2 uova (100 g)", "1 cucchiaio (10 g)", "250 ml". */
+export function formatQty(id, grams) {
+  const u = unitsFor(id);
+  const g = Math.round(grams * 10) / 10;
+  if (u.ml) return `${Math.round(g)} ml`;
+  if (u.spoon) {
+    if (g >= 10 && g % 10 === 0) return `${g / 10} cucchiai${g === 10 ? 'o' : ''} (${g} g)`;
+    if (g <= 5) return `1 cucchiaino (${g} g)`;
+  }
+  if (u.unit) {
+    const [one, many, w] = u.unit;
+    const n = Math.round((g / w) * 2) / 2;
+    if (w >= 5 && n > 0) return `${n === 0.5 ? '½' : String(n).replace('.', ',')} ${n <= 1 ? one : many} (${Math.round(g)} g)`;
+  }
+  return `${Math.round(g)} g`;
+}
