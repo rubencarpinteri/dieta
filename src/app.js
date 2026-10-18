@@ -3,7 +3,7 @@ import { load, save, exportJson, uid, today, emptyState } from './store.js';
 import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
-import { generateWeek, swapMeal, dayTotals, supplementAdvice, MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES } from './lib/planner.js';
+import { generateWeek, swapMeal, dayTotals, supplementAdvice, eligibleRecipes, MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD } from './lib/planner.js';
 import { RECIPES } from './lib/recipes.js';
 import { formatQty } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
@@ -72,6 +72,7 @@ function App() {
 const blankProfile = () => ({
   id: uid(), name: '', sex: 'M', birthYear: 1990, heightCm: 175, weightKg: 80, goalKg: 72, activity: 'leggero', pace: 0.5,
   pregnant: false, medical: false, medicalNote: '', fasting: 'nessuno', cooking: 'momento', microwaveW: 800,
+  overnight: false, onboard: DEFAULT_ONBOARD,
   approved: [], dayTypes: Array(7).fill('casa'), plan: null, weights: [], shoppingChecked: {},
 });
 
@@ -101,7 +102,7 @@ function Onboarding({ state, base, onDone, onCancel }) {
     </section>`}
     ${step === 2 && html`<section class="card">
       <h1>Abitudini</h1>
-      <${HabitFields} p=${p} set=${setP} />
+      <${HabitFields} p=${first ? { ...p, approved: base.map((x) => x.id) } : p} set=${(v) => setP({ ...v, approved: p.approved })} />
       <p class="muted small">${first
         ? `La tua lista contiene già ${base.length} prodotti approvati: potrai modificarla in "Prodotti".`
         : 'Dopo, in "Prodotti", spunta gli alimenti che vuoi nel tuo piano: partirai da una lista vuota.'}</p>
@@ -114,7 +115,7 @@ function Onboarding({ state, base, onDone, onCancel }) {
 const field = (p, set, key, parse = (v) => v) => ({ value: p[key], onInput: (e) => set({ ...p, [key]: parse(e.target.value) }) });
 const num = (v) => (v === '' ? '' : Number(String(v).replace(',', '.')));
 
-function ProfileFields({ p, set }) {
+function ProfileFields({ p, set, editWeight = true }) {
   return html`
     <label>Nome<input ...${field(p, set, 'name')} placeholder="Es. Ruben" /></label>
     <div class="row">
@@ -123,7 +124,7 @@ function ProfileFields({ p, set }) {
     </div>
     <div class="row">
       <label>Altezza (cm)<input type="number" inputmode="numeric" ...${field(p, set, 'heightCm', num)} /></label>
-      <label>Peso (kg)<input type="number" inputmode="decimal" step="0.1" ...${field(p, set, 'weightKg', num)} /></label>
+      ${editWeight && html`<label>Peso di partenza (kg)<input type="number" inputmode="decimal" step="0.1" ...${field(p, set, 'weightKg', num)} /></label>`}
       <label>Obiettivo (kg)<input type="number" inputmode="decimal" step="0.1" ...${field(p, set, 'goalKg', num)} /></label>
     </div>
     <label>Attività fisica<select ...${field(p, set, 'activity')}>
@@ -143,7 +144,20 @@ function HabitFields({ p, set }) {
     <label>Come preferisci cucinare?<select ...${field(p, set, 'cooking')}>
       <option value="momento">Al momento, ogni giorno</option>
       <option value="prep">Meal prep: cucino una volta per 2 giorni</option></select></label>
-    <label>Potenza del microonde (watt)<input type="number" inputmode="numeric" ...${field(p, set, 'microwaveW', num)} /></label>`;
+    <label>Potenza del microonde (watt)<input type="number" inputmode="numeric" ...${field(p, set, 'microwaveW', num)} /></label>
+    <${OnboardFields} p=${p} set=${set} />`;
+}
+
+function OnboardFields({ p, set }) {
+  const onboard = p.onboard ?? DEFAULT_ONBOARD;
+  const options = eligibleRecipes(new Set(p.approved ?? [])).filter((r) => r.portable && r.meals.includes('pranzo'));
+  const toggle = (id) => set({ ...p, onboard: onboard.includes(id) ? onboard.filter((x) => x !== id) : [...onboard, id] });
+  return html`
+    <label class="check"><input type="checkbox" checked=${!!p.overnight} onChange=${(e) => set({ ...p, overnight: e.target.checked })} /> Faccio anche voli con pernotto</label>
+    <p class="label-like">Cosa mangi a bordo nei giorni di volo</p>
+    ${options.length === 0 ? html`<p class="muted small">Nessun pasto da portare possibile con i prodotti della tua lista.</p>`
+      : options.map((r) => html`<label class="check"><input type="checkbox" checked=${onboard.includes(r.id)} onChange=${() => toggle(r.id)} /> ${r.name}</label>`)}
+    <p class="muted small">Nei giorni di volo il pranzo sarà scelto solo tra questi. Se non ne spunti nessuno, userò qualsiasi pasto da portare.</p>`;
 }
 
 // ───────────────────────── Plan ─────────────────────────
@@ -162,7 +176,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     return diff >= 0 && diff < 7 ? diff : 0;
   });
   const [open, setOpen] = useState(null);
-  const opts = { approved, targets, fasting: profile.fasting, cooking: profile.cooking, dayTypes: profile.dayTypes };
+  const opts = { approved, targets, fasting: profile.fasting, cooking: profile.cooking, dayTypes: profile.dayTypes, onboard: profile.onboard ?? DEFAULT_ONBOARD };
 
   const newPlan = () => updateProfile((p) => {
     p.plan = { ...generateWeek({ ...opts, seed: Date.now() }, byId), startDate: today() };
@@ -196,7 +210,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
         <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot">✈️</span>`}</button>`; })}</div>
 
     <section class="card tight">
-      <div class="segmented">${Object.entries(DAY_TYPES).map(([k, t]) => html`
+      <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
         <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
       <${Totals} totals=${totals} targets=${targets} />
     </section>
@@ -394,29 +408,47 @@ function ShoppingTab({ profile, byId, updateProfile }) {
 }
 
 // ───────────────────────── Weight ─────────────────────────
+const BODY = [
+  ['fatPct', 'Grasso corporeo', '%'],
+  ['muscleKg', 'Massa muscolare', 'kg'],
+  ['waterPct', 'Acqua', '%'],
+  ['visceral', 'Grasso viscerale', 'livello'],
+];
+
 function WeightTab({ profile, updateProfile }) {
   const [kg, setKg] = useState('');
   const [date, setDate] = useState(today());
+  const [body, setBody] = useState({});
+  const [showBody, setShowBody] = useState(false);
+  const [metric, setMetric] = useState('kg');
   const weights = [...(profile.weights ?? [])].sort((a, b) => a.date.localeCompare(b.date));
   const add = () => {
     const v = num(kg);
     if (!v || v < 30 || v > 300) return;
+    const extra = Object.fromEntries(BODY.map(([k]) => [k, num(body[k] ?? '')]).filter(([, x]) => x !== '' && !Number.isNaN(x)));
     updateProfile((p) => {
-      p.weights = [...(p.weights ?? []).filter((w) => w.date !== date), { date, kg: v }].sort((a, b) => a.date.localeCompare(b.date));
+      p.weights = [...(p.weights ?? []).filter((w) => w.date !== date), { date, kg: v, ...extra }].sort((a, b) => a.date.localeCompare(b.date));
       p.weightKg = p.weights.at(-1).kg;
     });
     setKg('');
+    setBody({});
   };
   const first = weights[0], last = weights.at(-1);
   const trend = weeklyTrend(weights);
+  const metrics = [['kg', 'Peso', 'kg'], ...BODY.filter(([k]) => weights.filter((w) => w[k] != null).length >= 2)];
+  const [, metricLabel, metricUnit] = metrics.find(([k]) => k === metric) ?? metrics[0];
+  const series = weights.filter((w) => w[metric] != null).map((w) => ({ date: w.date, kg: w[metric] }));
   return html`
     <section class="card">
       <div class="row">
         <label>Peso (kg)<input type="number" inputmode="decimal" step="0.1" value=${kg} onInput=${(e) => setKg(e.target.value)} placeholder=${last?.kg ?? ''} /></label>
         <label>Data<input type="date" value=${date} max=${today()} onInput=${(e) => setDate(e.target.value)} /></label>
       </div>
+      <label class="check"><input type="checkbox" checked=${showBody} onChange=${(e) => setShowBody(e.target.checked)} /> Aggiungi i dati della bilancia impedenziometrica</label>
+      ${showBody && html`<div class="grid2">${BODY.map(([k, l, u]) => html`
+        <label>${l} (${u})<input type="number" inputmode="decimal" step="0.1" value=${body[k] ?? ''} onInput=${(e) => setBody({ ...body, [k]: e.target.value })} /></label>`)}</div>`}
       <button class="primary" onClick=${add}>Registra</button>
-      <p class="muted small">Pesati alla stessa ora, al mattino a digiuno. Al rientro da un volo è normale vedere 0,5-1 kg in più per i liquidi trattenuti: conta l'andamento, non il singolo giorno.</p>
+      <p class="muted small">Pesati alla stessa ora, al mattino a digiuno. Se registri due volte lo stesso giorno, vale l'ultima. Al rientro da un volo è normale vedere 0,5-1 kg in più per i liquidi trattenuti: conta l'andamento, non il singolo giorno.</p>
     </section>
     ${weights.length > 0 && html`<section class="card">
       <div class="stats">
@@ -425,12 +457,15 @@ function WeightTab({ profile, updateProfile }) {
         <div><small class="muted">Variazione</small><b>${(last.kg - first.kg > 0 ? '+' : '') + dec(last.kg - first.kg)} kg</b></div>
         <div><small class="muted">Obiettivo</small><b>${profile.goalKg} kg</b></div>
       </div>
-      ${weights.length > 1 && html`<${WeightChart} weights=${weights} goal=${profile.goalKg} />`}
+      ${metrics.length > 1 && html`<div class="segmented">${metrics.map(([k, l]) => html`<button class=${metric === k ? 'on' : ''} onClick=${() => setMetric(k)}>${l}</button>`)}</div>`}
+      ${series.length > 1 && html`<${WeightChart} weights=${series} goal=${metric === 'kg' ? profile.goalKg : null} unit=${metricUnit} label=${metricLabel} />`}
       ${trend != null && html`<p class="small">Andamento delle ultime settimane: <b>${trend > 0 ? '+' : ''}${trend.toFixed(2).replace('.', ',')} kg a settimana</b>.</p>`}
     </section>
     <section class="card tight"><h3>Storico</h3><ul class="plist">${[...weights].reverse().map((w) => html`<li class="wrow">
-      <span>${new Date(w.date + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}</span><b>${dec(w.kg)} kg</b>
-      <button class="ghost small" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); })}>✕</button></li>`)}</ul></section>`}`;
+      <span>${new Date(w.date + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
+        ${BODY.some(([k]) => w[k] != null) && html`<small class="muted">${BODY.filter(([k]) => w[k] != null).map(([k, l, u]) => `${l} ${dec(w[k])}${u === 'livello' ? '' : ' ' + u}`).join(' · ')}</small>`}</span>
+      <b>${dec(w.kg)} kg</b>
+      <button class="ghost small" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); if (p.weights.length) p.weightKg = p.weights.at(-1).kg; })}>✕</button></li>`)}</ul></section>`}`;
 }
 
 /** Least-squares slope over the last 28 days, in kg per week. */
@@ -443,7 +478,7 @@ function weeklyTrend(weights) {
   return den ? (num_ / den) * 7 : null;
 }
 
-function WeightChart({ weights, goal }) {
+function WeightChart({ weights, goal, unit = 'kg', label = 'Peso' }) {
   const W = 320, H = 160, P = { l: 34, r: 8, t: 10, b: 22 };
   const xs = weights.map((w) => new Date(w.date).getTime());
   const ys = weights.map((w) => w.kg);
@@ -452,16 +487,27 @@ function WeightChart({ weights, goal }) {
   const y = (v) => P.t + ((maxY - v) / (maxY - minY)) * (H - P.t - P.b);
   const ticks = [minY, Math.round((minY + maxY) / 2), maxY];
   const fmt = (t) => new Date(t).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
-  return html`<svg class="chart" viewBox=${`0 0 ${W} ${H}`} role="img" aria-label="Andamento del peso">
+  return html`<svg class="chart" viewBox=${`0 0 ${W} ${H}`} role="img" aria-label=${`Andamento: ${label}`}>
     ${ticks.map((v) => html`<line x1=${P.l} x2=${W - P.r} y1=${y(v)} y2=${y(v)} class="grid" /><text x=${P.l - 6} y=${y(v) + 4} text-anchor="end">${v}</text>`)}
     ${goal && goal >= minY && html`<line x1=${P.l} x2=${W - P.r} y1=${y(goal)} y2=${y(goal)} class="goal" /><text x=${W - P.r} y=${y(goal) - 4} text-anchor="end" class="goal-label">obiettivo</text>`}
     <polyline points=${weights.map((w, i) => `${x(xs[i])},${y(w.kg)}`).join(' ')} class="line" />
-    ${weights.map((w, i) => html`<circle cx=${x(xs[i])} cy=${y(w.kg)} r="3" class="pt"><title>${fmt(xs[i])}: ${w.kg} kg</title></circle>`)}
+    ${weights.map((w, i) => html`<circle cx=${x(xs[i])} cy=${y(w.kg)} r="3" class="pt"><title>${fmt(xs[i])}: ${dec(w.kg)} ${unit}</title></circle>`)}
     <text x=${P.l} y=${H - 6}>${fmt(xs[0])}</text><text x=${W - P.r} y=${H - 6} text-anchor="end">${fmt(xs.at(-1))}</text>
   </svg>`;
 }
 
 // ───────────────────────── Profile ─────────────────────────
+function WeightSummary({ profile }) {
+  const w = [...(profile.weights ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+  const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+  if (!w.length) return null;
+  return html`<div class="stats">
+    <div><small class="muted">Peso iniziale (${fmt(w[0].date)})</small><b>${dec(w[0].kg)} kg</b></div>
+    <div><small class="muted">Peso attuale (${fmt(w.at(-1).date)})</small><b>${dec(w.at(-1).kg)} kg</b></div>
+  </div>
+  <p class="muted small">Il peso si aggiorna dalla scheda Peso: il fabbisogno viene ricalcolato sull'ultima pesata.</p>`;
+}
+
 function ProfileTab({ state, profile, targets, update, updateProfile }) {
   const [draft, setDraft] = useState(profile);
   useEffect(() => setDraft(profile), [profile.id]);
@@ -491,7 +537,8 @@ function ProfileTab({ state, profile, targets, update, updateProfile }) {
     </section>
     <section class="card">
       <h2>Dati</h2>
-      <${ProfileFields} p=${draft} set=${setDraft} />
+      <${WeightSummary} profile=${profile} />
+      <${ProfileFields} p=${draft} set=${setDraft} editWeight=${false} />
       <${HabitFields} p=${draft} set=${setDraft} />
       <button class="primary" disabled=${!dirty} onClick=${() => updateProfile((p) => Object.assign(p, draft))}>Salva</button>
       ${dirty && html`<p class="muted small">Dopo aver salvato, genera un nuovo piano per aggiornare le porzioni.</p>`}

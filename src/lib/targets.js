@@ -38,11 +38,13 @@ export function dailyTargets(profile) {
     warnings.push('Il tuo indice di massa corporea è sotto il normale: non ti propongo un deficit. Parlane con un medico.');
   }
 
-  const floor = Math.max(MIN_KCAL[profile.sex], Math.round(base));
+  // Only the absolute safety minimum is enforced. Eating below BMR is allowed: the body still burns
+  // its total daily expenditure, so weight loss continues; protein stays high to protect muscle.
+  const floor = MIN_KCAL[profile.sex];
   let kcal = Math.round(tdee - deficit);
   if (kcal < floor) {
     kcal = floor;
-    warnings.push(`Ho alzato le calorie a ${floor} kcal: scendere sotto il metabolismo basale o la soglia minima di sicurezza è sconsigliato. Il calo sarà un po' più lento.`);
+    warnings.push(`Ho alzato le calorie a ${floor} kcal, la soglia minima di sicurezza: sotto questo valore è difficile coprire vitamine e minerali senza un medico. Il calo sarà un po' più lento.`);
   }
 
   // Reference weight: current weight, or weight at BMI 25 when overweight.

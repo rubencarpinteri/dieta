@@ -81,7 +81,7 @@ export const RECIPES = [
   { id: 'riso_nero_tonno', name: 'Riso nero con tonno, finocchio e limone', meals: ['pranzo', 'cena'], method: 'microonde', minutes: 4, portable: true,
     ingredients: [I('riso_nero_pronto', 125, 'carb', 125, 250), I('tonno_rio_mare', 80, 'protein', 80, 160), I('finocchio', 150, 'veg', 100, 300), I('olio_evo', 5, 'fat', 0, 10), I('limone', 10), I('sale', 1)],
     steps: ['Scalda {riso_nero_pronto} di riso nero al microonde per 1-2 minuti (busta aperta di lato).', 'Unisci {tonno_rio_mare} di tonno sgocciolato e {finocchio} di finocchio a fettine sottili.', 'Condisci con {olio_evo} di olio, {limone} di succo di limone e sale. Buono anche freddo: si porta in volo in un contenitore.'] },
-  { id: 'basmati_pollo_soffritto', name: 'Riso basmati integrale con pollo e verdure', meals: ['pranzo', 'cena'], method: 'pentola', minutes: 25, batch: true,
+  { id: 'basmati_pollo_soffritto', name: 'Riso basmati integrale con pollo e verdure', meals: ['pranzo', 'cena'], method: 'pentola', minutes: 25, batch: true, portable: true,
     ingredients: [I('basmati_integrale', 70, 'carb', 50, 100), I('petto_pollo', 130, 'protein', 100, 200), I('soffritto', 60, 'veg', 40, 120), I('olio_evo', 5, 'fat', 5, 10), I('sale', 1), I('paprika', 1)],
     steps: ['Il basmati integrale richiede 20-25 minuti: cuocine 3 porzioni insieme e conservale in frigo fino a 3 giorni.', 'Cuoci {basmati_integrale} di riso (peso a crudo) in abbondante acqua salata.', 'In padella con {olio_evo} di olio salta {soffritto} di soffritto 3 minuti, poi {petto_pollo} di pollo a cubetti con paprika per 6-7 minuti.', 'Unisci il riso e salta 1 minuto.'] },
   { id: 'piadella_bresaola', name: 'Piadella integrale con bresaola e insalata', meals: ['pranzo', 'cena'], method: 'nessuna', minutes: 3, portable: true,
@@ -117,6 +117,17 @@ export const RECIPES = [
   { id: 'finocchi_contorno_pollo', name: 'Pollo in padella con finocchi e cipolla stufati', meals: ['pranzo', 'cena'], method: 'padella', minutes: 15,
     ingredients: [I('petto_pollo', 150, 'protein', 100, 260), I('finocchio', 250, 'veg', 150, 400), I('cipolla', 50), I('olio_evo', 10, 'fat', 5, 10), I('pane_integrale', 30, 'carb', 0, 90), I('sale', 1)],
     steps: ['In padella con metà dell\'olio stufa {finocchio} di finocchio e {cipolla} di cipolla a fettine, coperti, con un dito d\'acqua per 10 minuti.', 'In un\'altra padella cuoci {petto_pollo} di pollo a fettine con il resto dell\'olio, 3 minuti per lato, e sala.', 'Servi con {pane_integrale}.'] },
+
+  // ───────────── DA PORTARE A BORDO ─────────────
+  { id: 'panino_cotto_provola', name: 'Panino integrale con prosciutto cotto e provola', meals: ['pranzo', 'cena'], method: 'nessuna', minutes: 3, portable: true,
+    ingredients: [I('pane_integrale', 90, 'carb', 60, 150, { step: 30 }), I('prosciutto_cotto', 60, 'protein', 40, 120), I('provola', 30, 'fat', 20, 50), I('insalata', 30, 'veg', 0, 60)],
+    steps: ['Farcisci {pane_integrale} con {prosciutto_cotto} di prosciutto cotto, {provola} di provola affumicata a fette e, se ti va, {insalata} di insalata.', 'Avvolgi nella carta e porta in borsa termica. Si prepara anche la sera prima.'] },
+  { id: 'panino_crudo_provola', name: 'Panino integrale con prosciutto crudo e provola', meals: ['pranzo', 'cena'], method: 'nessuna', minutes: 3, portable: true,
+    ingredients: [I('pane_integrale', 90, 'carb', 60, 150, { step: 30 }), I('prosciutto_crudo_sd', 50, 'protein', 30, 90), I('provola', 30, 'fat', 20, 50), I('insalata', 30, 'veg', 0, 60)],
+    steps: ['Farcisci {pane_integrale} con {prosciutto_crudo_sd} di prosciutto crudo, {provola} di provola affumicata a fette e, se ti va, {insalata} di insalata.', 'Avvolgi nella carta e porta in borsa termica. Si prepara anche la sera prima.'] },
+  { id: 'riso_nero_pollo', name: 'Riso nero con pollo (da portare)', meals: ['pranzo', 'cena'], method: 'friggitrice', minutes: 12, portable: true,
+    ingredients: [I('riso_nero_pronto', 125, 'carb', 125, 250), I('petto_pollo', 130, 'protein', 100, 220), I('olio_evo', 5, 'fat', 0, 10), I('limone', 5), I('prezzemolo', 3), I('paprika', 1), I('sale', 1)],
+    steps: ['Taglia {petto_pollo} di pollo a cubetti, condisci con paprika e sale: friggitrice ad aria a 190 °C per 10-12 minuti, scuotendo a metà.', 'Scalda {riso_nero_pronto} di riso nero al microonde 1-2 minuti.', 'Unisci pollo e riso, condisci con {olio_evo} di olio, limone e prezzemolo. Chiudi in un contenitore: si mangia anche freddo o scaldato a bordo.'] },
 
   // ───────────── SPUNTINI ─────────────
   { id: 'mela_mandorle', name: 'Mela e mandorle', meals: ['spuntino'], method: 'nessuna', minutes: 0, portable: true,

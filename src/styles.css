@@ -202,3 +202,4 @@ button:disabled { opacity: .45; cursor: default; }
 .chart .goal-label { fill: var(--accent); }
 .chart .line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; }
 .chart .pt { fill: var(--card); stroke: var(--text); stroke-width: 1.5; }
+.label-like { font-size: 14px; color: var(--muted); margin: 14px 0 4px; }

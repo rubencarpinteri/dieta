@@ -9,7 +9,7 @@ const byId = Object.fromEntries(products.map((p) => [p.id, p]));
 const profile = { sex: 'M', age: 35, heightCm: 178, weightKg: 85, activity: 'leggero', pace: 0.5 };
 const targets = dailyTargets(profile);
 console.log(targets);
-const plan = generateWeek({ approved: new Set(products.map((p) => p.id)), targets, dayTypes: ['casa', 'volo', 'pernotto', 'casa', 'casa', 'volo', 'casa'], cooking: process.argv[2] ?? 'momento', seed: 42 }, byId);
+const plan = generateWeek({ approved: new Set(products.map((p) => p.id)), targets, dayTypes: ['casa', 'volo', 'volo', 'casa', 'casa', 'volo', 'casa'], cooking: process.argv[2] ?? 'momento', seed: 42 }, byId);
 const avg = { kcal: 0, protein: 0, fiber: 0, carbs: 0, fat: 0 };
 for (const [i, day] of plan.days.entries()) {
   const t = dayTotals(day);

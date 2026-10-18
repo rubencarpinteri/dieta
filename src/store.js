@@ -22,10 +22,11 @@ export function save(state) {
 
 export function exportJson(state) {
   const blob = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' });
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `dieta-backup-${new Date().toISOString().slice(0, 10)}.json` });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `dieta-backup-${today()}.json` });
   a.click();
   URL.revokeObjectURL(a.href);
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
-export const today = () => new Date().toISOString().slice(0, 10);
+// Local date (YYYY-MM-DD): toISOString() would use UTC and be a day behind just after midnight in Italy.
+export const today = () => new Date().toLocaleDateString('sv-SE');

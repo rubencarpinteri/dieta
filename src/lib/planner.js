@@ -14,9 +14,19 @@ export const FASTING = {
 
 export const DAY_TYPES = {
   casa: { label: 'A casa', portable: [] },
-  volo: { label: 'Volo in giornata', portable: ['pranzo', 'spuntino'] },
+  volo: { label: 'Volo in giornata', portable: ['pranzo'] },
   pernotto: { label: 'Volo con pernotto', portable: ['colazione', 'pranzo', 'spuntino', 'cena'] },
 };
+
+// What each person usually eats on board; editable in the profile.
+export const DEFAULT_ONBOARD = ['panino_cotto_provola', 'panino_crudo_provola', 'riso_nero_pollo', 'basmati_pollo_soffritto'];
+
+/** Which recipes fit a meal on a given day: on-board lunch uses the person's on-board list, other carried meals any portable recipe. */
+function fitsDay(type, meal, onboard) {
+  if (!DAY_TYPES[type].portable.includes(meal)) return () => true;
+  if (type === 'volo' && meal === 'pranzo' && onboard?.length) return (r) => onboard.includes(r.id);
+  return (r) => r.portable;
+}
 
 const MAX_TREATS_PER_WEEK = 2;
 
@@ -80,7 +90,7 @@ function rng(seed) {
  * @param {string[]} opts.dayTypes     7 keys of DAY_TYPES
  * @param {'momento'|'prep'} opts.cooking
  */
-export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes, cooking = 'momento', seed = Date.now() }, productsById) {
+export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes, cooking = 'momento', onboard = DEFAULT_ONBOARD, seed = Date.now() }, productsById) {
   const random = rng(seed);
   const pool = eligibleRecipes(approved);
   const split = FASTING[fasting].split;
@@ -102,15 +112,14 @@ export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes,
         meals[meal] = { ...prev, leftover: true };
         continue;
       }
-      picks[meal] = pickMeal({ meal, mustCarry, pool, recent, treatsUsed, random, cooking });
+      picks[meal] = pickMeal({ meal, fits: fitsDay(type, meal, onboard), pool, recent, treatsUsed, random, cooking });
     }
     // Too much salt in one day (cured meats, crackers): re-pick the saltiest meal a few times.
     for (let tries = 0; tries < 6; tries++) {
       Object.assign(meals, balanceDay(picks, meals, targets, split, productsById));
       if (dayTotals({ meals }).salt <= MAX_SALT_PER_DAY) break;
       const [meal] = Object.entries(meals).filter(([, m]) => m && !m.leftover).sort(([, a], [, b]) => b.totals.salt - a.totals.salt)[0];
-      const mustCarry = DAY_TYPES[type].portable.includes(meal);
-      picks[meal] = pickMeal({ meal, mustCarry, pool, recent, treatsUsed, random, cooking }) ?? picks[meal];
+      picks[meal] = pickMeal({ meal, fits: fitsDay(type, meal, onboard), pool, recent, treatsUsed, random, cooking }) ?? picks[meal];
     }
     days.push({ type, meals });
   }
@@ -145,9 +154,10 @@ function balanceDay(picks, fixedMeals, targets, split, productsById) {
   return meals;
 }
 
-function pickMeal({ meal, mustCarry, pool, recent, treatsUsed, random, cooking }) {
-  let options = pool.filter((r) => r.meals.includes(meal) && (!mustCarry || r.portable));
-  if (cooking === 'momento') options = options.filter((r) => !r.batch || r.minutes <= 15);
+function pickMeal({ meal, fits, pool, recent, treatsUsed, random, cooking }) {
+  let options = pool.filter((r) => r.meals.includes(meal) && fits(r));
+  // Cooking every day: skip long batch recipes, unless nothing else fits (e.g. the on-board list).
+  if (cooking === 'momento' && options.some((r) => !r.batch || r.minutes <= 15)) options = options.filter((r) => !r.batch || r.minutes <= 15);
   const fresh = options.filter((r) => !recent.slice(-4).includes(r.id) && (!r.treat || treatsUsed.n < MAX_TREATS_PER_WEEK));
   const list = fresh.length ? fresh : options;
   if (!list.length) return null;
@@ -166,8 +176,8 @@ export function buildMeal(recipe, meal, targets, split, productsById) {
 /** Swap a single meal for another eligible recipe. */
 export function swapMeal(plan, dayIndex, meal, opts, productsById) {
   const current = plan.days[dayIndex].meals[meal]?.recipeId;
-  const mustCarry = DAY_TYPES[plan.days[dayIndex].type].portable.includes(meal);
-  const options = eligibleRecipes(opts.approved).filter((r) => r.meals.includes(meal) && r.id !== current && (!mustCarry || r.portable));
+  const fits = fitsDay(plan.days[dayIndex].type, meal, opts.onboard ?? DEFAULT_ONBOARD);
+  const options = eligibleRecipes(opts.approved).filter((r) => r.meals.includes(meal) && r.id !== current && fits(r));
   if (!options.length) return plan;
   const recipe = options[Math.floor(Math.random() * options.length)];
   const days = plan.days.map((day, i) => (i !== dayIndex ? day : {
