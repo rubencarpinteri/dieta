@@ -4,7 +4,7 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, setQuantity, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, setQuantity, snapshotMeal, applySaved, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
@@ -447,6 +447,10 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 
     ${sheet?.kind === 'menu' && html`<${MealMenu} meal=${sheet.meal} m=${current.meals[sheet.meal]} onClose=${close}
       onPick=${(kind) => setSheet({ kind, meal: sheet.meal })} onReset=${() => { edit(resetMeal(sheet.meal)); close(); }} />`}
+    ${sheet?.kind === 'save' && current.meals[sheet.meal] && html`<${SaveMealSheet} m=${current.meals[sheet.meal]} byId=${byId} onClose=${close}
+      onSave=${(name) => { updateProfile((p) => { p.savedMeals = [...(p.savedMeals ?? []), { id: uid(), name, ...snapshotMeal(current.meals[sheet.meal]), createdAt: today() }]; }); close(); }} />`}
+    ${sheet?.kind === 'saved' && html`<${SavedMealsSheet} meal=${sheet.meal} saved=${profile.savedMeals ?? []} byId=${byId} approved=${approved} updateProfile=${updateProfile} onClose=${close}
+      onPick=${(saved) => { edit(applySaved(sheet.meal, saved, byId)); close(); }} />`}
     ${sheet?.kind === 'qty' && current.meals[sheet.meal] && html`<${QuantitySheet} m=${current.meals[sheet.meal]} p=${sheet.p} byId=${byId} room=${room}
       onSet=${(g) => { edit(setQuantity(sheet.meal, sheet.p, g, byId)); close(); }} onClose=${close} />`}
     ${sheet?.kind === 'add' && html`<${AddIngredientSheet} meal=${sheet.meal} m=${current.meals[sheet.meal]} approved=${approved} byId=${byId} room=${room}
@@ -475,13 +479,13 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
   const r = recipeById[m.recipeId];
   const skipped = m.skipped ?? [];
   const missing = skipped.filter((p) => productRole(byId[p]) !== 'other');
-  const modified = skipped.length || m.custom || m.boosted;
+  const modified = skipped.length || (m.custom && !m.savedId) || m.boosted;
   return html`<section class=${'card meal' + (m.done ? ' done' : '')}>
     <div class="meal-top">
       <small class="muted">${MEAL_LABEL[meal]} · <b>${r0(m.totals.kcal)} kcal</b></small>
       ${m.done ? html`<span class="tag ok">✓ mangiato</span>` : m.leftover ? html`<span class="tag">avanzo di ieri</span>` : modified ? html`<span class="tag">modificato</span>` : ''}
     </div>
-    <h3>${r.name}</h3>
+    <h3>${m.savedName ?? r.name}${m.savedName ? html`<span class="tag">salvato</span>` : ''}</h3>
     <div class="meal-meta"><${MacroDots} t=${m.totals} /><small class="muted">${METHOD[r.method]}${r.minutes ? ` · ${r.minutes}′` : ''}${r.portable ? ' · da portare' : ''}</small></div>
     ${rebalance}
     <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
@@ -506,12 +510,55 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
   </section>`;
 }
 
+function SaveMealSheet({ m, byId, onSave, onClose }) {
+  const [name, setName] = useState(m.savedName ?? recipeById[m.recipeId]?.name ?? '');
+  const snap = snapshotMeal(m);
+  const t = nutrientsOf(snap.items, byId);
+  return html`<${Sheet} title="Salva questo pasto" onClose=${onClose}>
+    <form onSubmit=${(e) => { e.preventDefault(); name.trim() && onSave(name.trim()); }}>
+      <label>Nome<input value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Es. La mia pasta al parmigiano" autofocus /></label>
+      <p class="small muted">Verrà salvato così, con le quantità di adesso${(m.skipped ?? []).length ? ' (senza gli ingredienti barrati)' : ''}:</p>
+      <ul class="plist">${snap.items.map((i) => html`<li class="wrow"><span>${byId[i.p].name}</span><b>${formatQty(i.p, i.g)}</b></li>`)}</ul>
+      <p class="small">${r0(t.kcal)} kcal</p><${MacroDots} t=${t} />
+      <button class="primary" disabled=${!name.trim() || !snap.items.length}>Salva</button>
+    </form>
+  <//>`;
+}
+
+function SavedMealsSheet({ meal, saved, byId, approved, updateProfile, onPick, onClose }) {
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState('');
+  const rename = (id) => { updateProfile((p) => { p.savedMeals = p.savedMeals.map((x) => (x.id === id ? { ...x, name: draft.trim() || x.name } : x)); }); setEditing(null); };
+  const remove = (x) => confirm(`Eliminare "${x.name}" dai pasti salvati?`) && updateProfile((p) => { p.savedMeals = p.savedMeals.filter((y) => y.id !== x.id); });
+  return html`<${Sheet} title="Pasti salvati" onClose=${onClose}>
+    ${saved.length === 0 && html`<p class="muted">Non hai ancora pasti salvati. Modifica un pasto come piace a te, poi dal menu ⋯ scegli "Salva questo pasto".</p>`}
+    ${saved.length > 0 && html`<p class="small muted">Tocca un pasto per metterlo a ${MEAL_LABEL[meal].toLowerCase()}. Il resto della giornata si ricalcola.</p><${MacroLegend} />`}
+    <ul class="results alt">${saved.map((x) => {
+      const t = nutrientsOf(x.items.filter((i) => byId[i.p]), byId);
+      const missing = x.items.filter((i) => !approved.has(i.p));
+      return html`<li>
+        ${editing === x.id
+          ? html`<form class="rename" onSubmit=${(e) => { e.preventDefault(); rename(x.id); }}>
+              <input value=${draft} onInput=${(e) => setDraft(e.target.value)} aria-label="Nuovo nome" autofocus />
+              <button class="ghost small strong">Salva</button></form>`
+          : html`<button onClick=${() => onPick(x)}><span><b>${x.name}</b><${MacroDots} t=${t} />
+              <small class="muted">${r0(t.kcal)} kcal · ${x.items.map((i) => byId[i.p] ? short(byId, i.p) : '?').join(', ')}</small>
+              ${missing.length > 0 && html`<small class="warn-text">Contiene prodotti che non sono più nella tua lista</small>`}</span></button>
+            <button class="x" aria-label=${`Rinomina ${x.name}`} onClick=${() => { setEditing(x.id); setDraft(x.name); }}><${Icon} name="pencil" size=${16} /></button>
+            <button class="x danger" aria-label=${`Elimina ${x.name}`} onClick=${() => remove(x)}><${Icon} name="close" size=${16} /></button>`}
+      </li>`;
+    })}</ul>
+  <//>`;
+}
+
 function MealMenu({ meal, m, onPick, onReset, onClose }) {
   const modified = (m.skipped ?? []).length || m.custom || m.boosted;
   return html`<${Sheet} title=${MEAL_LABEL[meal]} onClose=${onClose}>
     <ul class="results alt menu">
       <li><button onClick=${() => onPick('add')}><${Icon} name="plus" /><span><b>Aggiungi un ingrediente</b><small class="muted">Un prodotto della tua lista, nella quantità che vuoi</small></span></button></li>
       <li><button onClick=${() => onPick('out')}><${Icon} name="fork" /><span><b>Mangiato fuori casa</b><small class="muted">Lasagna della mamma, sushi, pizza… con una stima delle calorie</small></span></button></li>
+      <li><button onClick=${() => onPick('saved')}><${Icon} name="bookmark" /><span><b>Pasti salvati</b><small class="muted">Metti qui un pasto che hai salvato in passato</small></span></button></li>
+      <li><button onClick=${() => onPick('save')}><${Icon} name="bookmarkPlus" /><span><b>Salva questo pasto</b><small class="muted">Con le tue modifiche e un nome, per riusarlo quando vuoi</small></span></button></li>
       ${modified && html`<li><button onClick=${() => confirm('Tornare al pasto come nel piano?') && onReset()}><${Icon} name="undo" /><span><b>Annulla tutte le modifiche</b><small class="muted">Ingredienti tolti, aggiunti, sostituiti e quantità tornano come nel piano</small></span></button></li>`}
     </ul>
   <//>`;

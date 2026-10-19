@@ -411,7 +411,7 @@ export function substitutes(mealObj, productId, approved, productsById, meal = n
   return { role, list: list.slice(0, 8) };
 }
 
-const withTotals = (m, productsById) => ({ ...m, totals: nutrientsOf(m.items.filter((i) => !(m.skipped ?? []).includes(i.p)), productsById) });
+export const withTotals = (m, productsById) => ({ ...m, totals: nutrientsOf(m.items.filter((i) => !(m.skipped ?? []).includes(i.p)), productsById) });
 
 /** Put `newId` (grams `g`) in place of `oldId` in a meal. */
 export const substitute = (meal, oldId, newId, g, productsById) => (day) => {
@@ -502,6 +502,20 @@ export const removeAdded = (meal, productId, productsById) => (day) => {
     .map((i) => (i.p === productId && i.addedG ? (({ addedG, ...rest }) => ({ ...rest, g: i.g - addedG }))(i) : i));
   return setMeal(meal, withTotals({ ...m, items }, productsById))(day);
 };
+
+/** A meal as eaten (ingredients removed are left out), ready to be saved under a name. */
+export function snapshotMeal(m) {
+  const skipped = m.skipped ?? [];
+  return {
+    recipeId: m.recipeId,
+    items: m.items.filter((i) => !skipped.includes(i.p) && i.g > 0)
+      .map(({ p, g, role, min, max, step }) => ({ p, g, role: role ?? 'fixed', min: Math.min(min ?? g, g), max: Math.max(max ?? g, g), ...(step ? { step } : {}) })),
+  };
+}
+
+/** Put a saved meal in a slot, with its saved amounts. */
+export const applySaved = (meal, saved, productsById) => (day) =>
+  setMeal(meal, withTotals({ recipeId: saved.recipeId, items: saved.items.map((i) => ({ ...i })), skipped: [], custom: true, savedId: saved.id, savedName: saved.name }, productsById))(day);
 
 /** Set how much of an ingredient you eat; the planned amount is kept to go back to it. */
 export const setQuantity = (meal, productId, g, productsById) => (day) => {

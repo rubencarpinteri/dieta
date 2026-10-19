@@ -345,3 +345,5 @@ summary { cursor: pointer; color: var(--accent); min-height: var(--tap); display
   .sheet-grab { padding-top: 14px; }
   .overlay { align-items: center; }
 }
+.rename { display: flex; gap: 8px; align-items: center; flex: 1; padding: 8px 0; }
+.rename input { margin: 0; }
