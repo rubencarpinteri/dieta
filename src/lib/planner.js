@@ -327,7 +327,8 @@ export function changeDayType(plan, dayIndex, type, opts, productsById) {
     const typed = { ...plan, days: plan.days.map((d, i) => (i === dayIndex ? { ...d, type, meals } : d)) };
     for (const meal of Object.keys(splitFor(opts.fasting, type))) {
       const m = meals[meal];
-      if (m && (m.done || m.external || fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD)(recipeById[m.recipeId]))) continue;
+      // Meals you made yourself (no recipe) stay as they are.
+      if (m && (m.done || m.external || !recipeById[m.recipeId] || fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD)(recipeById[m.recipeId]))) continue;
       const list = alternatives(typed, dayIndex, meal, opts, productsById);
       // Cooking every day: avoid long batch recipes (e.g. brown basmati) when something quicker fits.
       const best = list.find((a) => opts.cooking !== 'momento' || !a.recipe.batch || a.recipe.minutes <= 15) ?? list[0];
@@ -514,8 +515,12 @@ export function snapshotMeal(m) {
 }
 
 /** Put a saved meal in a slot, with its saved amounts. */
-export const applySaved = (meal, saved, productsById) => (day) =>
-  setMeal(meal, withTotals({ recipeId: saved.recipeId, items: saved.items.map((i) => ({ ...i })), skipped: [], custom: true, savedId: saved.id, savedName: saved.name }, productsById))(day);
+export const applySaved = (meal, saved, productsById) => (day) => {
+  // Keep the plan's meal underneath, so "Annulla tutte le modifiche" can bring it back.
+  const prev = day.meals[meal];
+  const replaced = prev?.savedId ? prev.replaced : prev;
+  return setMeal(meal, withTotals({ recipeId: saved.recipeId ?? null, items: saved.items.map((i) => ({ ...i })), skipped: [], custom: true, savedId: saved.id, savedName: saved.name, replaced }, productsById))(day);
+};
 
 /** Set how much of an ingredient you eat; the planned amount is kept to go back to it. */
 export const setQuantity = (meal, productId, g, productsById) => (day) => {
@@ -599,6 +604,7 @@ export function richerAlternative(plan, dayIndex, meal, opts, productsById, macr
 /** Back to the plan's version of a meal (portions recomputed for the day). */
 export const resetMeal = (meal) => (day) => {
   const m = day.meals[meal];
+  if (m.savedId && m.replaced) return setMeal(meal, m.replaced)(day);
   return setMeal(meal, { recipeId: m.recipeId, items: [], totals: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, salt: 0 } })(day);
 };
 
