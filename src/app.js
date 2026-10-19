@@ -48,7 +48,7 @@ function App() {
   if (!profile) return html`<${Onboarding} state=${state} base=${base} onDone=${(p, mode) => update((s) => {
     if (mode) s.household.mode = mode;
     s.profiles.push(p); s.activeId = p.id;
-  })} onCancel=${state.profiles.length ? () => update((s) => { s.activeId = s.profiles[0].id; }) : null} />`;
+  })} onImport=${(data) => update(() => data)} onCancel=${state.profiles.length ? () => update((s) => { s.activeId = s.profiles[0].id; }) : null} />`;
 
   const targets = dailyTargets({ ...profile, age: ageFrom(profile.birthYear) });
   const ctx = { state, profile, products, byId, targets, update, updateProfile };
@@ -73,6 +73,13 @@ function App() {
     </nav>`;
 }
 
+/** Read a backup exported from another device. Rejects anything that is not one of our backups. */
+async function readBackup(file) {
+  const data = JSON.parse(await file.text());
+  if (!Array.isArray(data.profiles) || !data.profiles.length) throw new Error('not a backup');
+  return { ...emptyState(), ...data, activeId: data.activeId ?? data.profiles[0].id };
+}
+
 // ───────────────────────── Onboarding / profile form ─────────────────────────
 const blankProfile = () => ({
   id: uid(), name: '', sex: 'M', birthYear: 1990, heightCm: 175, weightKg: 80, goalKg: 72, activity: 'leggero', pace: 0.5,
@@ -81,7 +88,7 @@ const blankProfile = () => ({
   approved: [], dayTypes: Array(7).fill('casa'), plan: null, weights: [], shoppingChecked: {},
 });
 
-function Onboarding({ state, base, onDone, onCancel }) {
+function Onboarding({ state, base, onDone, onCancel, onImport }) {
   const first = state.profiles.length === 0;
   const [step, setStep] = useState(first ? 0 : 1);
   const [mode, setMode] = useState(state.household.mode);
@@ -98,6 +105,15 @@ function Onboarding({ state, base, onDone, onCancel }) {
       <label class="choice"><input type="radio" checked=${mode === 'singolo'} onChange=${() => setMode('singolo')} /> <span><b>Solo io</b></span></label>
       <label class="choice"><input type="radio" checked=${mode === 'coppia'} onChange=${() => setMode('coppia')} /> <span><b>Due persone</b> (coppia o coinquilini): dispensa in comune, piani personali</span></label>
       <button class="primary" onClick=${() => setStep(1)}>Continua</button>
+    </section>
+    <section class="card">
+      <h2>Usi già l'app su un altro dispositivo?</h2>
+      <p class="small muted">Sull'altro dispositivo vai in Profilo → Esporta backup e manda il file qui (su iPhone con AirDrop o salvandolo in File). Poi sceglilo qui sotto: ritrovi profilo, prodotti, piano e pesate.</p>
+      <label class="ghost filebtn">Importa un backup<input type="file" accept="application/json,.json" onChange=${(e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (file) readBackup(file).then(onImport).catch(() => alert('Questo file non è un backup dell\'app Dieta.'));
+      }} /></label>
     </section>`}
     ${step === 1 && html`<section class="card">
       <h1>${first ? 'Il tuo profilo' : 'Nuova persona'}</h1>
@@ -642,12 +658,11 @@ function ProfileTab({ state, profile, targets, update, updateProfile }) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
   const importFile = (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
-    file.text().then((t) => {
-      const data = JSON.parse(t);
-      if (!Array.isArray(data.profiles)) throw new Error();
-      if (confirm('Sostituire tutti i dati di questo dispositivo con il backup?')) update(() => ({ ...emptyState(), ...data }));
-    }).catch(() => alert('File non valido.'));
+    readBackup(file)
+      .then((data) => confirm('Sostituire tutti i dati di questo dispositivo con il backup?') && update(() => data))
+      .catch(() => alert('Questo file non è un backup dell\'app Dieta.'));
   };
   return html`
     <section class="card">
