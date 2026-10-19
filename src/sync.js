@@ -103,3 +103,41 @@ export async function listen(hid, uid, { onProfiles, onShared, onError }) {
     (snap) => snap.exists() && onShared(snap.data()), onError);
   return () => { offA(); offB(); };
 }
+
+// ── Plain web requests (Firestore REST API): a fallback when the live connection stays silent. ──
+const REST = `https://firestore.googleapis.com/v1/projects/${FIREBASE_CONFIG.projectId}/databases/(default)/documents`;
+
+/** Firestore REST values → plain JavaScript values. */
+function fromValue(v) {
+  if ('mapValue' in v) return Object.fromEntries(Object.entries(v.mapValue.fields ?? {}).map(([k, x]) => [k, fromValue(x)]));
+  if ('arrayValue' in v) return (v.arrayValue.values ?? []).map(fromValue);
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('nullValue' in v) return null;
+  return v.stringValue ?? v.booleanValue ?? v.timestampValue;
+}
+
+async function rest(url, token, body) {
+  const r = await fetch(url, {
+    method: body ? 'POST' : 'GET',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: body && JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+export async function restProfiles(hid, uid, token) {
+  const rows = await rest(`${REST}/households/${hid}:runQuery`, token, {
+    structuredQuery: {
+      from: [{ collectionId: 'profiles' }],
+      where: { fieldFilter: { field: { fieldPath: 'data.owner' }, op: 'EQUAL', value: { stringValue: uid } } },
+    },
+  });
+  return rows.filter((x) => x.document).map((x) => fromValue({ mapValue: x.document }));
+}
+
+export async function restShared(hid, token) {
+  const d = await rest(`${REST}/households/${hid}`, token);
+  return fromValue({ mapValue: d });
+}

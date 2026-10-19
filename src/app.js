@@ -59,7 +59,7 @@ function useSync(state, setState) {
       if (!alive) return;
       if (!user || user.uid !== state.sync.uid) { setInfo({ status: 'signedout' }); return; }
       setInfo((x) => ({ ...x, stage: 'profili' }));
-      const off = await sync.listen(hid, user.uid, {
+      const handlers = {
         onProfiles: (docs) => {
           setState((s) => {
             // Other people's profiles stay private: drop any copy this device still has from before.
@@ -88,9 +88,27 @@ function useSync(state, setState) {
           sent.current.shared = JSON.stringify({ mode: d.mode, customProducts: d.customProducts ?? [] });
           ready.current.shared = true;
         },
-        onError: () => setInfo({ status: 'error' }),
-      });
-      if (alive) stopListen = off; else off();
+        onError: (e) => setInfo({ status: 'error', detail: e?.code ?? String(e) }),
+      };
+      const off = await sync.listen(hid, user.uid, handlers);
+      if (alive) stopListen = off; else { off(); return; }
+      // Plan B: if the live connection delivers nothing within a few seconds (it happens in Safari on
+      // iPhone), read the same data with a plain web request. Live updates keep trying in the background.
+      const backup = setTimeout(async () => {
+        if (!alive || ready.current.profiles) return;
+        setInfo((x) => ({ ...x, stage: 'riserva' }));
+        try {
+          const token = await user.getIdToken();
+          const [docs, shared] = await Promise.all([sync.restProfiles(hid, user.uid, token), sync.restShared(hid, token)]);
+          if (!alive || ready.current.profiles) return;
+          if (shared) handlers.onShared(shared);
+          handlers.onProfiles(docs);
+        } catch (e) {
+          if (alive) setInfo((x) => ({ ...x, detail: e?.message ?? String(e) }));
+        }
+      }, 5000);
+      const stop = stopListen;
+      stopListen = () => { clearTimeout(backup); stop(); };
     }).then((unsub) => { if (alive) stopUser = unsub; else unsub(); })
       .catch(() => setInfo({ status: 'error' }));
     return () => { alive = false; stopListen(); stopUser(); };
@@ -250,10 +268,11 @@ function Downloading({ syncInfo, setState }) {
   const slow = Date.now() - (syncInfo.since ?? Date.now()) > 15000;
   const restart = () => sync.signOut().finally(() => setState((s) => ({ ...s, sync: null })));
   return html`<main class="center"><section class="card">
-    <p class="muted">${syncInfo.stage === 'profili' ? 'Scarico i tuoi dati…' : 'Accesso in corso…'}</p>
+    <p class="muted">${{ accesso: 'Accesso in corso…', profili: 'Scarico i tuoi dati…', riserva: 'Scarico i tuoi dati (secondo tentativo)…' }[syncInfo.stage] ?? 'Scarico i tuoi dati…'}</p>
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>
       <button class="primary" onClick=${() => location.reload()}>Riprova</button>
-      <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>`}
+      <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
+      <p class="small muted">Dettagli per l'assistenza: ${syncInfo.stage ?? '-'}${syncInfo.detail ? ` · ${syncInfo.detail}` : ''}</p>`}
   </section></main>`;
 }
 
