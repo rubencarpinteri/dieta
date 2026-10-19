@@ -285,7 +285,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v32</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v33</p>
   </section></main>`;
 }
 

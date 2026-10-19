@@ -395,3 +395,6 @@ details.group[open] > summary { margin-bottom: 4px; }
   border-radius: 999px; background: var(--card); box-shadow: 0 4px 20px rgba(0,0,0,.15); }
 .save-bar button { flex: 1; margin: 0; min-height: var(--tap); }
 @media (min-width: 960px) { .save-bar { bottom: 16px; } }
+/* iPhone draws date fields wider than their box: keep them inside it so the page never grows sideways. */
+input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; }
+html, body { overflow-x: clip; }

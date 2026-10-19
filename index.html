@@ -35,9 +35,24 @@
     })();
   </script>
   <script>
-    // No zooming: Safari on iPhone ignores user-scalable=no, so pinch and double-tap are stopped here too.
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
-    document.addEventListener('touchmove', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    // No zooming: Safari on iPhone ignores user-scalable=no, so pinch and double-tap are stopped here too,
+    // and if the page ever ends up zoomed (e.g. when a field gets focus) it is snapped back to 100%.
+    (function () {
+      var stop = function (e) { e.preventDefault(); };
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, stop, { passive: false }); });
+      document.addEventListener('touchstart', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+      document.addEventListener('touchmove', function (e) { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+      var meta = document.querySelector('meta[name=viewport]');
+      var base = meta.content;
+      function unzoom() {
+        if (!window.visualViewport || visualViewport.scale <= 1.01) return;
+        meta.content = base + ', minimum-scale=1';
+        setTimeout(function () { meta.content = base; }, 50);
+      }
+      document.addEventListener('focusin', function () { setTimeout(unzoom, 300); });
+      document.addEventListener('focusout', function () { setTimeout(unzoom, 300); });
+      if (window.visualViewport) visualViewport.addEventListener('resize', function () { setTimeout(unzoom, 300); });
+    })();
   </script>
   <script type="module" src="src/app.js"></script>
   <script>
