@@ -118,6 +118,16 @@ export const RECIPES = [
     ingredients: [I('petto_pollo', 150, 'protein', 100, 260), I('finocchio', 250, 'veg', 150, 400), I('cipolla', 50), I('olio_evo', 10, 'fat', 5, 10), I('pane_integrale', 30, 'carb', 0, 90), I('sale', 1)],
     steps: ['In padella con metà dell\'olio stufa {finocchio} di finocchio e {cipolla} di cipolla a fettine, coperti, con un dito d\'acqua per 10 minuti.', 'In un\'altra padella cuoci {petto_pollo} di pollo a fettine con il resto dell\'olio, 3 minuti per lato, e sala.', 'Servi con {pane_integrale}.'] },
 
+  { id: 'riso_nero_tonno_pomodoro', name: 'Riso nero al tonno e pomodoro', meals: ['pranzo', 'cena'], method: 'padella', minutes: 8,
+    ingredients: [I('riso_nero_pronto', 125, 'carb', 125, 250), I('tonno_rio_mare', 80, 'protein', 80, 240), I('mutti_datterini', 100), I('cipolla', 30, 'veg', 0, 80), I('olio_evo', 5, 'fat', 0, 10), I('sale', 1)],
+    steps: ['In padella con {olio_evo} di olio appassisci {cipolla} di cipolla tritata per 2 minuti.', 'Aggiungi {mutti_datterini} di salsa datterini e {tonno_rio_mare} di tonno sgocciolato, cuoci 3 minuti.', 'Scalda {riso_nero_pronto} di riso nero al microonde 1-2 minuti e saltalo 1 minuto nel sugo.'] },
+  { id: 'uova_pomodoro_pane', name: 'Uova al pomodoro con pane integrale', meals: ['pranzo', 'cena'], method: 'padella', minutes: 10,
+    ingredients: [I('uova', 100, 'protein', 100, 150), I('mutti_datterini', 150), I('pane_integrale', 60, 'carb', 30, 120), I('parmigiano_grattugiato', 5), I('basilico', 2), I('sale', 1)],
+    steps: ['Scalda {mutti_datterini} di salsa datterini in una padella piccola per 2 minuti.', 'Fai due incavi e rompici dentro {uova}; sala, copri e cuoci a fuoco medio 5-6 minuti, finché l\'albume è rappreso.', 'Completa con {parmigiano_grattugiato} di parmigiano e basilico; accompagna con {pane_integrale}, ottimo per fare la scarpetta.'] },
+  { id: 'pollo_pizzaiola', name: 'Pollo alla pizzaiola con pane integrale', meals: ['pranzo', 'cena'], method: 'padella', minutes: 12,
+    ingredients: [I('petto_pollo', 150, 'protein', 100, 250), I('mutti_datterini', 120), I('provola', 20, 'fat', 0, 40), I('pane_integrale', 60, 'carb', 30, 120), I('olio_evo', 5), I('sale', 1)],
+    steps: ['In padella con {olio_evo} di olio rosola {petto_pollo} di petto a fettine 2 minuti per lato.', 'Aggiungi {mutti_datterini} di salsa datterini, sala e cuoci coperto 5 minuti.', 'Negli ultimi 2 minuti metti sopra {provola} di provola a fette e lascia fondere. Servi con {pane_integrale}.'] },
+
   // ───────────── DA PORTARE A BORDO ─────────────
   { id: 'panino_cotto_provola', name: 'Panino integrale con prosciutto cotto e provola', meals: ['pranzo', 'cena'], method: 'nessuna', minutes: 3, portable: true,
     ingredients: [I('pane_integrale', 90, 'carb', 60, 150, { step: 30 }), I('prosciutto_cotto', 60, 'protein', 40, 120), I('provola', 30, 'fat', 20, 50), I('insalata', 30, 'veg', 0, 60)],

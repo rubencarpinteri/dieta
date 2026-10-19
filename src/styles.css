@@ -214,7 +214,8 @@ button:disabled { opacity: .45; cursor: default; }
 .link { color: var(--accent); font-size: 13px; padding: 0; text-decoration: underline; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
 .chips button { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
-.chips button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chips button.on, .chips button.keep { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chips button.remove { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
 .results.alt li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); }
 .results.alt li > button:first-child { flex: 1; border-top: 0; padding: 10px 0; }
 .results.alt span { display: block; }

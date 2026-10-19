@@ -266,16 +266,27 @@ export function rebalanceDay(day, targets, split, productsById) {
   return { ...day, meals };
 }
 
-/** Recipes that could replace a meal, portioned for that slot. `without` excludes recipes using that product. */
-export function alternatives(plan, dayIndex, meal, opts, productsById, without = null) {
+/**
+ * Recipes that could replace a meal, portioned for that slot.
+ * filter.keep: products the new dish must contain; filter.remove: products it must not contain.
+ * Dishes that keep only some of the wanted products are returned too, marked with `kept`.
+ */
+export function alternatives(plan, dayIndex, meal, opts, productsById, filter = {}) {
+  const { keep = [], remove = [] } = typeof filter === 'string' ? { remove: [filter] } : filter ?? {};
   const day = plan.days[dayIndex];
   const split = splitFor(opts.fasting, day.type);
   const fits = fitsDay(day.type, meal, opts.onboard ?? DEFAULT_ONBOARD);
   const target = { kcal: opts.targets.kcal * (split[meal] ?? 0.25), protein: opts.targets.protein * (split[meal] ?? 0.25) };
   return eligibleRecipes(opts.approved)
-    .filter((r) => servesMeal(r, meal) && fits(r) && (!without || !r.ingredients.some((i) => i.p === without)))
-    .map((r) => ({ recipe: r, meal: buildFor(r, target, productsById), fitsBudget: minKcal(r, productsById) <= target.kcal * 1.1 }))
-    .sort((a, b) => b.fitsBudget - a.fitsBudget || Math.abs(a.meal.totals.kcal - target.kcal) - Math.abs(b.meal.totals.kcal - target.kcal));
+    .filter((r) => servesMeal(r, meal) && fits(r) && !r.ingredients.some((i) => remove.includes(i.p)))
+    .map((r) => ({
+      recipe: r,
+      meal: buildFor(r, target, productsById),
+      fitsBudget: minKcal(r, productsById) <= target.kcal * 1.1,
+      kept: keep.filter((p) => r.ingredients.some((i) => i.p === p)).length,
+    }))
+    .filter((a) => !keep.length || a.kept > 0)
+    .sort((a, b) => b.kept - a.kept || b.fitsBudget - a.fitsBudget || Math.abs(a.meal.totals.kcal - target.kcal) - Math.abs(b.meal.totals.kcal - target.kcal));
 }
 
 /** Apply a change to one day and rebalance it. `change(day)` returns the changed day. */

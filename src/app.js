@@ -438,8 +438,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
         ${isOpen && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
         <div class="actions">
           ${m.done
-            ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Annulla "mangiato"</button>`
-            : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Mangiato</button>
+            ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Non l'ho mangiato</button>`
+            : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Segna come mangiato</button>
               <button class="ghost small" onClick=${() => setAltFor({ meal, without: null })}>🔄 Alternative</button>
               <button class="ghost small" onClick=${() => setOutFor({ meal })}>🍽️ Fuori casa</button>`}
           <button class="ghost small" onClick=${() => setOpen(isOpen ? null : meal)}>${isOpen ? 'Nascondi ricetta' : '📖 Ricetta'}</button>
@@ -471,20 +471,33 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     </section>`;
 }
 
-const IGNORE_AS_MISSING = new Set(['sale', 'pepe_nero', 'paprika', 'prezzemolo', 'basilico', 'limone']);
+// Seasonings are not offered as "keep / remove" choices: almost every dish has them.
+const IGNORE_AS_MISSING = new Set(['sale', 'pepe_nero', 'paprika', 'prezzemolo', 'basilico', 'limone', 'olio_evo']);
+const short = (byId, p) => byId[p].name.split(' – ')[0];
 
 function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onClose }) {
-  const [without, setWithout] = useState(target.without);
-  const list = alternatives(plan, day, target.meal, opts, byId, without).filter((a) => a.recipe.id !== current?.recipeId);
+  // Like holding cards: each ingredient can be kept (the new dish must have it) or removed (must not).
+  const [hold, setHold] = useState(() => Object.fromEntries([...(current?.skipped ?? []), target.without].filter(Boolean).map((p) => [p, 'remove'])));
+  const keep = Object.keys(hold).filter((p) => hold[p] === 'keep');
+  const remove = Object.keys(hold).filter((p) => hold[p] === 'remove');
+  const cycle = (p) => setHold((h) => ({ ...h, [p]: h[p] === 'keep' ? 'remove' : h[p] === 'remove' ? undefined : 'keep' }));
+  const all = alternatives(plan, day, target.meal, opts, byId, { keep, remove }).filter((a) => a.recipe.id !== current?.recipeId);
+  const full = all.filter((a) => a.kept === keep.length);
+  const list = full.length ? full : all.slice(0, 8);
   const chips = (current?.items ?? []).map((i) => i.p).filter((p) => !IGNORE_AS_MISSING.has(p));
+
   return html`<${Sheet} title=${`Alternative per ${MEAL_LABEL[target.meal].toLowerCase()}`} onClose=${onClose}>
-    ${chips.length > 0 && html`<p class="small muted">Ti manca qualcosa? Escludi i piatti che lo usano:</p>
-      <div class="chips">${chips.map((p) => html`<button class=${without === p ? 'on' : ''} onClick=${() => setWithout(without === p ? null : p)}>senza ${byId[p].name.split(' – ')[0].toLowerCase()}</button>`)}</div>`}
-    ${list.length === 0 && html`<p class="muted">Nessuna alternativa con i tuoi prodotti${without ? ' senza questo ingrediente' : ''}.</p>`}
+    ${chips.length > 0 && html`
+      <p class="small muted">Tocca gli ingredienti del piatto attuale: <b>1 volta 🔒 tienilo</b>, <b>2 volte ✕ toglilo</b>, 3 volte indifferente.</p>
+      <div class="chips">${chips.map((p) => html`<button class=${hold[p] ?? ''} onClick=${() => cycle(p)}>
+        ${hold[p] === 'keep' ? '🔒 ' : hold[p] === 'remove' ? '✕ ' : ''}${short(byId, p)}</button>`)}</div>`}
+    ${(keep.length > 0 || remove.length > 0) && html`<p class="small">${keep.length ? `Con ${keep.map((p) => short(byId, p).toLowerCase()).join(', ')}` : ''}${keep.length && remove.length ? ' · ' : ''}${remove.length ? `senza ${remove.map((p) => short(byId, p).toLowerCase()).join(', ')}` : ''}</p>`}
+    ${all.length === 0 && html`<p class="muted">Nessun piatto possibile con questi vincoli: prova a togliere un 🔒.</p>`}
+    ${keep.length > 0 && !full.length && all.length > 0 && html`<p class="warn small">Nessun piatto ha tutti gli ingredienti che vuoi tenere: ecco quelli che ne hanno di più.</p>`}
     ${list.length > 0 && html`<button class="ghost" onClick=${() => onPick(list[Math.floor(Math.random() * list.length)].meal)}>🎲 Scegli tu a caso</button>`}
-    <ul class="results alt">${list.map(({ recipe, meal, fitsBudget }) => html`<li><button onClick=${() => onPick(meal)}>
-      <span><b>${recipe.name}</b><small class="muted">${r0(meal.totals.kcal)} kcal · ${r0(meal.totals.protein)} g prot. · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}</small>
-      <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => byId[i.p].name.split(' – ')[0]).join(', ')}</small></span></button></li>`)}</ul>
+    <ul class="results alt">${list.map(({ recipe, meal, fitsBudget, kept }) => html`<li><button onClick=${() => onPick(meal)}>
+      <span><b>${recipe.name}</b><small class="muted">${r0(meal.totals.kcal)} kcal · ${r0(meal.totals.protein)} g prot. · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}${keep.length && kept < keep.length ? ` · tiene ${kept} di ${keep.length}` : ''}</small>
+      <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => short(byId, i.p)).join(', ')}</small></span></button></li>`)}</ul>
   <//>`;
 }
 
