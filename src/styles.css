@@ -398,3 +398,7 @@ details.group[open] > summary { margin-bottom: 4px; }
 /* iPhone draws date fields wider than their box: keep them inside it so the page never grows sideways. */
 input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; }
 html, body { overflow-x: clip; }
+
+.segmented.choose { margin-top: 12px; }
+.removed-line { margin: 0 0 16px; }
+.menu .danger-row b { color: var(--bad); }

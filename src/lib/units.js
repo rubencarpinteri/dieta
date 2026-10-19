@@ -41,7 +41,9 @@ const ADD_DEFAULT = { parmigiano_grattugiato: 10, olio_evo: 5, burro_conad: 5, s
 export function addDefault(id) {
   if (ADD_DEFAULT[id]) return ADD_DEFAULT[id];
   const u = unitsFor(id);
-  return u.unit ? u.unit[2] : 50;
+  if (!u.unit) return 50;
+  // Tiny pieces (an almond weighs about a gram): start from a handful of about 15 g, not from one.
+  return u.unit[2] < 10 ? Math.round(15 / u.unit[2]) * u.unit[2] : u.unit[2];
 }
 export const unitsFor = (id) => UNITS[id] ?? DEFAULT;
 

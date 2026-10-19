@@ -5,7 +5,8 @@ import { unitsFor, addDefault } from './units.js';
 export const MEAL_ORDER = ['colazione', 'pranzo', 'bordo', 'spuntino', 'cena'];
 // Extra slots added by hand are named "<base>_<n>", e.g. "spuntino_2".
 export const baseMeal = (key) => key.split('_')[0];
-export function mealLabel(key) {
+export function mealLabel(key, m) {
+  if (m?.label) return m.label;
   const [base, n] = key.split('_');
   return (MEAL_LABEL[base] ?? base) + (n ? ` ${n}` : '');
 }
@@ -340,6 +341,7 @@ export function changeDayType(plan, dayIndex, type, opts, productsById) {
     if (!crew && !meals.bordo?.done && !meals.bordo?.external) delete meals.bordo;
     const typed = { ...plan, days: plan.days.map((d, i) => (i === dayIndex ? { ...d, type, meals } : d)) };
     for (const meal of Object.keys(splitFor(opts.fasting, type))) {
+      if (day.removed?.[meal]) continue; // removed by hand: stays removed
       const m = meals[meal];
       // Meals you made yourself (no recipe) stay as they are.
       if (m && (m.done || m.external || !recipeById[m.recipeId] || fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD)(recipeById[m.recipeId]))) continue;
@@ -636,10 +638,29 @@ export const addSnack = (dish) => (day) => {
   while (day.meals[`spuntino_${n}`]) n++;
   return setMeal(`spuntino_${n}`, dish)(day);
 };
+/** Add a meal of your own to the day, next to `base` (colazione, pranzo, spuntino, cena), with your name. */
+export const addMeal = (base, dish, label) => (day) => {
+  let n = 2;
+  while (day.meals[`${base}_${n}`] || day.removed?.[`${base}_${n}`]) n++;
+  return setMeal(`${base}_${n}`, { ...dish, custom: true, ...(label ? { label } : {}) })(day);
+};
+
+/** Remove any meal, planned ones too: the others share its calories. It is kept aside to bring it back. */
 export const removeMeal = (meal) => (day) => {
   const meals = { ...day.meals };
+  const gone = meals[meal];
   delete meals[meal];
-  return { ...day, meals };
+  return { ...day, meals, removed: { ...(day.removed ?? {}), [meal]: gone } };
+};
+export const restoreMeal = (meal) => (day) => {
+  const { [meal]: back, ...removed } = day.removed ?? {};
+  return { ...day, meals: { ...day.meals, [meal]: back }, removed };
+};
+
+/** Rename the meal (e.g. "Merenda") and/or the dish (e.g. "La mia pasta"); empty = back to the default. */
+export const renameMeal = (meal, { label, name }) => (day) => {
+  const { label: _l, name: _n, ...m } = day.meals[meal];
+  return setMeal(meal, { ...m, ...(label ? { label } : {}), ...(name ? { name } : {}) })(day);
 };
 
 export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);
