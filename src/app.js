@@ -345,7 +345,7 @@ function OnboardFields({ p, set }) {
     <p class="label-like">Cosa mangi a bordo nei giorni di volo</p>
     ${options.length === 0 ? html`<p class="muted small">Nessun pasto da portare possibile con i prodotti della tua lista.</p>`
       : options.map((r) => html`<label class="check"><input type="checkbox" checked=${onboard.includes(r.id)} onChange=${() => toggle(r.id)} /> ${r.name}</label>`)}
-    <p class="muted small">Nei giorni di volo il pranzo sarà scelto solo tra questi. Se non ne spunti nessuno, userò qualsiasi pasto da portare.</p>`;
+    <p class="muted small">Nei giorni di volo il piano aggiunge un pasto a bordo, scelto solo tra questi; gli altri pasti della giornata diventano un po' più leggeri. Se non ne spunti nessuno, userò qualsiasi pasto da portare.</p>`;
 }
 
 // ───────────────────────── Plan ─────────────────────────

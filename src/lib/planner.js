@@ -2,8 +2,8 @@
 import { RECIPES } from './recipes.js';
 import { unitsFor } from './units.js';
 
-export const MEAL_ORDER = ['colazione', 'pranzo', 'spuntino', 'cena'];
-export const MEAL_LABEL = { colazione: 'Colazione', pranzo: 'Pranzo', spuntino: 'Spuntino', cena: 'Cena' };
+export const MEAL_ORDER = ['colazione', 'pranzo', 'bordo', 'spuntino', 'cena'];
+export const MEAL_LABEL = { colazione: 'Colazione', pranzo: 'Pranzo', bordo: 'Pasto a bordo ✈️', spuntino: 'Spuntino', cena: 'Cena' };
 
 // Share of the daily calories per meal, by fasting protocol.
 export const FASTING = {
@@ -14,9 +14,26 @@ export const FASTING = {
 
 export const DAY_TYPES = {
   casa: { label: 'A casa', portable: [] },
-  volo: { label: 'Volo in giornata', portable: ['pranzo'] },
+  volo: { label: 'Volo in giornata', portable: ['bordo'], crewMeal: true },
   pernotto: { label: 'Volo con pernotto', portable: ['colazione', 'pranzo', 'spuntino', 'cena'] },
 };
+
+// On flight days the crew meal is an extra meal: it takes this share of the day and the other meals shrink.
+const CREW_MEAL_SHARE = 0.22;
+
+/** Share of the daily calories per meal for a given fasting protocol and day type. */
+export function splitFor(fasting, type) {
+  const base = FASTING[fasting]?.split ?? FASTING.nessuno.split;
+  if (!DAY_TYPES[type]?.crewMeal) return base;
+  const split = Object.fromEntries(Object.entries(base).map(([m, f]) => [m, f * (1 - CREW_MEAL_SHARE)]));
+  return { ...split, bordo: CREW_MEAL_SHARE };
+}
+
+/** Recipes that can fill a meal slot. The crew meal uses lunch/dinner recipes you can carry. */
+export function servesMeal(r, meal) {
+  if (meal === 'bordo') return r.portable && r.meals.some((m) => m === 'pranzo' || m === 'cena');
+  return r.meals.includes(meal);
+}
 
 // What each person usually eats on board; editable in the profile.
 export const DEFAULT_ONBOARD = ['panino_cotto_provola', 'panino_crudo_provola', 'riso_nero_pollo', 'basmati_pollo_soffritto'];
@@ -24,7 +41,7 @@ export const DEFAULT_ONBOARD = ['panino_cotto_provola', 'panino_crudo_provola', 
 /** Which recipes fit a meal on a given day: on-board lunch uses the person's on-board list, other carried meals any portable recipe. */
 function fitsDay(type, meal, onboard) {
   if (!DAY_TYPES[type].portable.includes(meal)) return () => true;
-  if (type === 'volo' && meal === 'pranzo' && onboard?.length) return (r) => onboard.includes(r.id);
+  if (meal === 'bordo' && onboard?.length) return (r) => onboard.includes(r.id);
   return (r) => r.portable;
 }
 
@@ -107,14 +124,13 @@ function rng(seed) {
 export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes, cooking = 'momento', onboard = DEFAULT_ONBOARD, seed = Date.now() }, productsById) {
   const random = rng(seed);
   const pool = eligibleRecipes(approved);
-  const split = FASTING[fasting].split;
   const treatsUsed = { n: 0 };
   const days = [];
   const recent = [];
 
   const fitsFor = (type, meal) => {
     const day = fitsDay(type, meal, onboard);
-    const budget = targets.kcal * split[meal] * 1.1;
+    const budget = targets.kcal * splitFor(fasting, type)[meal] * 1.1;
     const fit = (r) => day(r) && minKcal(r, productsById) <= budget;
     fit.loose = day;
     return fit;
@@ -122,6 +138,7 @@ export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes,
 
   for (let d = 0; d < 7; d++) {
     const type = dayTypes?.[d] ?? 'casa';
+    const split = splitFor(fasting, type);
     const meals = {};
     const picks = {};
     for (const meal of MEAL_ORDER) {
@@ -189,8 +206,8 @@ function balanceDay(picks, fixedMeals, targets, split, productsById) {
 }
 
 function pickMeal({ meal, fits, pool, recent, treatsUsed, random, cooking }) {
-  let options = pool.filter((r) => r.meals.includes(meal) && fits(r));
-  if (!options.length && fits.loose) options = pool.filter((r) => r.meals.includes(meal) && fits.loose(r));
+  let options = pool.filter((r) => servesMeal(r, meal) && fits(r));
+  if (!options.length && fits.loose) options = pool.filter((r) => servesMeal(r, meal) && fits.loose(r));
   // Cooking every day: skip long batch recipes, unless nothing else fits (e.g. the on-board list).
   if (cooking === 'momento' && options.some((r) => !r.batch || r.minutes <= 15)) options = options.filter((r) => !r.batch || r.minutes <= 15);
   const fresh = options.filter((r) => !recent.slice(-4).includes(r.id) && (!r.treat || treatsUsed.n < MAX_TREATS_PER_WEEK));
@@ -252,19 +269,22 @@ export function rebalanceDay(day, targets, split, productsById) {
 /** Recipes that could replace a meal, portioned for that slot. `without` excludes recipes using that product. */
 export function alternatives(plan, dayIndex, meal, opts, productsById, without = null) {
   const day = plan.days[dayIndex];
-  const split = FASTING[opts.fasting].split;
+  const split = splitFor(opts.fasting, day.type);
   const fits = fitsDay(day.type, meal, opts.onboard ?? DEFAULT_ONBOARD);
   const target = { kcal: opts.targets.kcal * (split[meal] ?? 0.25), protein: opts.targets.protein * (split[meal] ?? 0.25) };
   return eligibleRecipes(opts.approved)
-    .filter((r) => r.meals.includes(meal) && fits(r) && (!without || !r.ingredients.some((i) => i.p === without)))
+    .filter((r) => servesMeal(r, meal) && fits(r) && (!without || !r.ingredients.some((i) => i.p === without)))
     .map((r) => ({ recipe: r, meal: buildFor(r, target, productsById), fitsBudget: minKcal(r, productsById) <= target.kcal * 1.1 }))
     .sort((a, b) => b.fitsBudget - a.fitsBudget || Math.abs(a.meal.totals.kcal - target.kcal) - Math.abs(b.meal.totals.kcal - target.kcal));
 }
 
 /** Apply a change to one day and rebalance it. `change(day)` returns the changed day. */
 export function editDay(plan, dayIndex, change, opts, productsById) {
-  const split = FASTING[opts.fasting].split;
-  const days = plan.days.map((day, i) => (i === dayIndex ? rebalanceDay(change(day), opts.targets, split, productsById) : day));
+  const days = plan.days.map((day, i) => {
+    if (i !== dayIndex) return day;
+    const changed = change(day);
+    return rebalanceDay(changed, opts.targets, splitFor(opts.fasting, changed.type), productsById);
+  });
   return { ...plan, days };
 }
 
@@ -276,25 +296,27 @@ export function changeDayType(plan, dayIndex, type, opts, productsById) {
   const day = plan.days[dayIndex];
   if (day.type === type) return plan;
   const saved = { ...(day.saved ?? {}), [day.type]: day.meals };
-  let next;
-  if (saved[type]) {
-    // Restore what this day looked like with that type, but keep meals marked as eaten since.
-    const meals = { ...saved[type] };
-    for (const [meal, m] of Object.entries(day.meals)) if (m?.done || m?.external) meals[meal] = m;
-    next = { ...day, type, meals, saved };
+  const kept = Object.fromEntries(Object.entries(day.meals).filter(([, m]) => m?.done || m?.external));
+  const crew = DAY_TYPES[type].crewMeal;
+  let meals;
+  if (saved[type] && (!crew || saved[type].bordo)) {
+    // Restore what this day looked like with that type; meals eaten since stay as they are.
+    meals = { ...saved[type], ...kept };
   } else {
-    const meals = { ...day.meals };
-    for (const [meal, m] of Object.entries(day.meals)) {
-      if (!m || m.done || m.external) continue;
-      const fits = fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD);
-      if (fits(recipeById[m.recipeId])) continue;
-      const best = alternatives({ ...plan, days: plan.days.map((d, i) => (i === dayIndex ? { ...d, type } : d)) }, dayIndex, meal, opts, productsById)[0];
+    meals = { ...day.meals };
+    if (!crew && !meals.bordo?.done && !meals.bordo?.external) delete meals.bordo;
+    const typed = { ...plan, days: plan.days.map((d, i) => (i === dayIndex ? { ...d, type, meals } : d)) };
+    for (const meal of Object.keys(splitFor(opts.fasting, type))) {
+      const m = meals[meal];
+      if (m && (m.done || m.external || fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD)(recipeById[m.recipeId]))) continue;
+      const list = alternatives(typed, dayIndex, meal, opts, productsById);
+      // Cooking every day: avoid long batch recipes (e.g. brown basmati) when something quicker fits.
+      const best = list.find((a) => opts.cooking !== 'momento' || !a.recipe.batch || a.recipe.minutes <= 15) ?? list[0];
       if (best) meals[meal] = best.meal;
     }
-    next = { ...day, type, meals, saved };
   }
-  const split = FASTING[opts.fasting].split;
-  const days = plan.days.map((d, i) => (i === dayIndex ? rebalanceDay(next, opts.targets, split, productsById) : d));
+  const next = { ...day, type, meals, saved };
+  const days = plan.days.map((d, i) => (i === dayIndex ? rebalanceDay(next, opts.targets, splitFor(opts.fasting, type), productsById) : d));
   return { ...plan, days };
 }
 
