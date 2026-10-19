@@ -4,7 +4,7 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, dayTotals, supplementAdvice, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, supplementAdvice, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
@@ -393,8 +393,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 
   const setDayType = (type) => updateProfile((p) => {
     p.dayTypes[day] = type;
-    const one = generateWeek({ ...opts, dayTypes: [type], seed: Date.now() }, byId).days[0];
-    p.plan.days[day] = one;
+    p.plan = changeDayType(p.plan, day, type, opts, byId);
   });
 
   return html`

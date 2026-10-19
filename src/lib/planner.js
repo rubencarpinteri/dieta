@@ -268,6 +268,36 @@ export function editDay(plan, dayIndex, change, opts, productsById) {
   return { ...plan, days };
 }
 
+/**
+ * Switch a day between "a casa" and "volo": keep every meal that still fits, replace only the
+ * ones that must change (e.g. lunch on a flight day). Switching back restores the previous version.
+ */
+export function changeDayType(plan, dayIndex, type, opts, productsById) {
+  const day = plan.days[dayIndex];
+  if (day.type === type) return plan;
+  const saved = { ...(day.saved ?? {}), [day.type]: day.meals };
+  let next;
+  if (saved[type]) {
+    // Restore what this day looked like with that type, but keep meals marked as eaten since.
+    const meals = { ...saved[type] };
+    for (const [meal, m] of Object.entries(day.meals)) if (m?.done || m?.external) meals[meal] = m;
+    next = { ...day, type, meals, saved };
+  } else {
+    const meals = { ...day.meals };
+    for (const [meal, m] of Object.entries(day.meals)) {
+      if (!m || m.done || m.external) continue;
+      const fits = fitsDay(type, meal, opts.onboard ?? DEFAULT_ONBOARD);
+      if (fits(recipeById[m.recipeId])) continue;
+      const best = alternatives({ ...plan, days: plan.days.map((d, i) => (i === dayIndex ? { ...d, type } : d)) }, dayIndex, meal, opts, productsById)[0];
+      if (best) meals[meal] = best.meal;
+    }
+    next = { ...day, type, meals, saved };
+  }
+  const split = FASTING[opts.fasting].split;
+  const days = plan.days.map((d, i) => (i === dayIndex ? rebalanceDay(next, opts.targets, split, productsById) : d));
+  return { ...plan, days };
+}
+
 export const setMeal = (meal, value) => (day) => ({ ...day, meals: { ...day.meals, [meal]: value } });
 
 /** Strike or restore an ingredient of a meal (only what is actually eaten is counted). */
