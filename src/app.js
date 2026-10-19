@@ -69,7 +69,9 @@ function useSync(state, setState) {
               }
               sent.current[d.data.id] = JSON.stringify(d.data);
             }
-            const mine = profiles.find((p) => p.owner === s.sync?.uid) ?? profiles[0];
+            // Open this account's own profile. Someone who just joined has none yet: no active profile
+            // means the app asks them to create theirs instead of showing someone else's plan.
+            const mine = profiles.find((p) => p.owner === s.sync?.uid) ?? profiles.find((p) => !p.owner);
             const activeId = profiles.some((p) => p.id === s.activeId) ? s.activeId : mine?.id ?? null;
             return { ...s, profiles, activeId };
           });
@@ -122,11 +124,11 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
   if (!sync.syncAvailable()) return null;
 
   const run = async (fn) => { setBusy(true); setMsg(''); try { await fn(); } catch (e) { setMsg(sync.syncError(e)); } setBusy(false); };
-  const connect = (hid, u, replaceLocal) => setState((s) => ({
-    ...s, sync: { uid: u.uid, email: u.email, hid },
-    profiles: replaceLocal ? [] : s.profiles.map((p) => ({ ...p, owner: p.owner ?? u.uid })),
-    activeId: replaceLocal ? null : s.activeId,
-  }));
+  const connect = (hid, u, replaceLocal) => setState((s) => {
+    const profiles = replaceLocal ? [] : s.profiles.map((p) => ({ ...p, owner: p.owner ?? u.uid }));
+    const mine = profiles.find((p) => p.owner === u.uid);
+    return { ...s, sync: { uid: u.uid, email: u.email, hid }, profiles, activeId: mine?.id ?? null };
+  });
 
   const login = (create) => run(async () => {
     const u = await sync.signIn(email, password, create);
