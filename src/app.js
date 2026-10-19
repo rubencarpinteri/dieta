@@ -8,6 +8,7 @@ import { RECIPES } from './lib/recipes.js';
 import { formatQty } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
+import { parseFitdays } from './lib/fitdays.js';
 
 const CATEGORIES = {
   proteine: 'Carne, pesce, uova e salumi', cereali: 'Pasta, riso, pane e cracker', latticini: 'Latte, formaggi e dessert proteici',
@@ -417,6 +418,40 @@ const BODY = [
   ['visceral', 'Grasso viscerale', 'livello'],
 ];
 
+// Tesseract.js (OCR) is loaded only when a report is imported: about 10 MB the first time, then cached.
+const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  return new Promise((resolve, reject) => {
+    const el = Object.assign(document.createElement('script'), { src: TESSERACT_URL, onload: () => resolve(window.Tesseract), onerror: reject });
+    document.head.append(el);
+  });
+}
+
+function ReportImport({ onRead }) {
+  const [status, setStatus] = useState('');
+  const read = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setStatus('Preparo la lettura (la prima volta serve qualche secondo in più)…');
+      const Tesseract = await loadTesseract();
+      setStatus('Leggo il referto…');
+      const { data } = await Tesseract.recognize(file, 'eng');
+      const values = parseFitdays(data.text);
+      if (!values.kg) { setStatus('Non riesco a leggere il peso: usa la prima pagina del referto, quella con la tabella "Body composition analysis".'); return; }
+      onRead(values);
+      const missing = ['fatPct', 'muscleKg', 'waterPct', 'visceral'].filter((k) => values[k] == null).length;
+      setStatus(missing ? 'Letto in parte: completa i campi vuoti, controlla e premi Registra.' : 'Valori letti: controllali e premi Registra.');
+    } catch {
+      setStatus('Lettura non riuscita. Serve la connessione la prima volta; altrimenti inserisci i valori a mano.');
+    }
+  };
+  return html`<label class="ghost filebtn">📷 Importa referto Fitdays<input type="file" accept="image/*" onChange=${read} /></label>
+    ${status && html`<p class="small muted">${status}</p>`}`;
+}
+
 function WeightTab({ profile, updateProfile }) {
   const [kg, setKg] = useState('');
   const [date, setDate] = useState(today());
@@ -443,8 +478,15 @@ function WeightTab({ profile, updateProfile }) {
   const valueOf = (w) => (metric === 'fatKg' ? (w.fatPct != null ? Math.round(w.kg * w.fatPct) / 100 : null) : w[metric]);
   const series = weights.filter((w) => valueOf(w) != null).map((w) => ({ date: w.date, kg: valueOf(w) }));
   const fatFirst = withFat[0], fatLast = withFat.at(-1);
+  const fromReport = (v) => {
+    setKg(String(v.kg));
+    if (v.date && v.date <= today()) setDate(v.date);
+    setBody(Object.fromEntries(BODY.filter(([k]) => v[k] != null).map(([k]) => [k, String(v[k])])));
+    setShowBody(true);
+  };
   return html`
     <section class="card">
+      <${ReportImport} onRead=${fromReport} />
       <div class="row">
         <label>Peso (kg)<input type="number" inputmode="decimal" step="0.1" value=${kg} onInput=${(e) => setKg(e.target.value)} placeholder=${last?.kg ?? ''} /></label>
         <label>Data<input type="date" value=${date} max=${today()} onInput=${(e) => setDate(e.target.value)} /></label>
