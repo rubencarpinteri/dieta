@@ -517,14 +517,27 @@ function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onC
     ${(keep.length > 0 || remove.length > 0) && html`<p class="small">${keep.length ? `Con ${keep.map((p) => short(byId, p).toLowerCase()).join(', ')}` : ''}${keep.length && remove.length ? ' · ' : ''}${remove.length ? `senza ${remove.map((p) => short(byId, p).toLowerCase()).join(', ')}` : ''}</p>`}
     ${all.length === 0 && html`<p class="muted">Nessun piatto possibile con questi vincoli: prova a togliere un 🔒.</p>`}
     ${keep.length > 0 && !full.length && all.length > 0 && html`<p class="warn small">Nessun piatto ha tutti gli ingredienti che vuoi tenere: ecco quelli che ne hanno di più.</p>`}
+    ${list.length > 0 && html`<${MacroLegend} />`}
     ${list.length > 0 && html`<button class="ghost" onClick=${() => onPick(list[Math.floor(Math.random() * list.length)].meal)}>🎲 Scegli tu a caso</button>`}
     <ul class="results alt">${list.map(({ recipe, meal, fitsBudget, kept }) => html`<li><button onClick=${() => onPick(meal)}>
-      <span><b>${recipe.name}</b><small class="muted">${r0(meal.totals.kcal)} kcal · ${r0(meal.totals.protein)} g prot. · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}${keep.length && kept < keep.length ? ` · tiene ${kept} di ${keep.length}` : ''}</small>
+      <span><b>${recipe.name}</b><${MacroDots} t=${meal.totals} /><small class="muted">${r0(meal.totals.kcal)} kcal · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}${keep.length && kept < keep.length ? ` · tiene ${kept} di ${keep.length}` : ''}</small>
       <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => short(byId, i.p)).join(', ')}</small></span></button></li>`)}</ul>
   <//>`;
 }
 
 const MACRO_NAME = { protein: 'proteine', carbs: 'carboidrati', fat: 'grassi', fiber: 'fibre' };
+// Colour code for macros: carbs blue, protein red, fat yellow, fibre green (also shown as a legend).
+const MACRO_GLYPH = [['carbs', 'C', 'Carboidrati'], ['protein', 'P', 'Proteine'], ['fat', 'G', 'Grassi'], ['fiber', 'F', 'Fibre']];
+
+function MacroLegend() {
+  return html`<p class="legend">${MACRO_GLYPH.map(([k, , label]) => html`<span><i class=${'mc ' + k}></i>${label}</span>`)}</p>`;
+}
+
+/** Grams of each macro with its colour glyph; with `delta`, signed differences. */
+function MacroDots({ t, delta = false }) {
+  const fmt = (v) => (delta ? (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(r0(v)) : r0(v));
+  return html`<span class="macros">${MACRO_GLYPH.map(([k, letter, label]) => html`<span title=${label}><i class=${'mc ' + k}>${letter}</i>${fmt(t[k] ?? 0)} g</span>`)}</span>`;
+}
 
 /** Optional suggestion on the next meal after a meal that lost protein, carbs, fat or fibre. */
 function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
@@ -559,7 +572,7 @@ function MissingPanel({ m, meal, byId, approved, edit, onSubstitute, onAlternati
     <p class="small muted">Se lasci così, le calorie che mancano passano agli altri pasti di oggi non ancora mangiati.${p ? ` Oppure, senza ${short(byId, p).toLowerCase()}:` : ''}</p>
     <div class="actions">
       ${missing.map((x) => html`<button class="ghost small strong" onClick=${() => onSubstitute(x)}>🔁 Cosa faccio senza ${short(byId, x).toLowerCase()}?</button>`)}
-      ${comp && !m.undoneBoost && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal</button>`}
+      ${comp && !m.undoneBoost && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal${comp.capped ? ' (porzione massima)' : ''}</button>`}
       ${m.boosted && html`<button class="ghost small" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button>`}
       ${!m.boosted && m.undoneBoost && html`<button class="ghost small strong" onClick=${() => edit(redoCompensate(meal, byId))}>↻ Ripristina l'aumento</button>`}
       <button class="ghost small" onClick=${onAlternatives}>🔄 Cambia piatto</button>
@@ -573,19 +586,21 @@ function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onC
   const comp = compensation(m, byId);
   const how = { protein: 'con le stesse proteine', carb: 'con le stesse calorie', fat: 'con le stesse calorie', veg: 'con lo stesso peso' }[role];
   const sign = (n) => (n > 0 ? '+' : '') + r0(n);
-  const macros = (t) => `${r0(t.kcal)} kcal · P ${r0(t.protein)} g · C ${r0(t.carbs)} g · G ${r0(t.fat)} g`;
   return html`<${Sheet} title=${`Senza ${short(byId, p).toLowerCase()}`} onClose=${onClose}>
-    <p class="small muted">Piatto intero: ${macros(comp?.before ?? nutrientsFull(m, byId))}<br />Senza ${short(byId, p).toLowerCase()}: ${macros(m.totals)}</p>
+    <${MacroLegend} />
+    <p class="small muted">Piatto intero: ${r0((comp?.before ?? nutrientsFull(m, byId)).kcal)} kcal <${MacroDots} t=${comp?.before ?? nutrientsFull(m, byId)} />
+      Senza ${short(byId, p).toLowerCase()}: ${r0(m.totals.kcal)} kcal <${MacroDots} t=${m.totals} /></p>
     <h3>Mettici qualcos'altro</h3>
     <p class="small muted">Prodotti della tua lista che fanno la stessa funzione, nella quantità ${how}. L'abbinamento lo giudichi tu.</p>
     ${list.length === 0 && html`<p class="muted small">Nella tua lista non c'è niente di simile per questo pasto.</p>`}
     <ul class="results alt">${list.map((x) => html`<li><button onClick=${() => onPick(x)}>
-      <span><b>${x.product.name}</b><small class="muted">${formatQty(x.product.id, x.g)} · ${sign(x.delta.kcal)} kcal · ${sign(x.delta.protein)} g proteine rispetto all'originale</small></span></button></li>`)}</ul>
+      <span><b>${x.product.name}</b><small class="muted">${formatQty(x.product.id, x.g)} · ${sign(x.delta.kcal)} kcal rispetto all'originale</small><${MacroDots} t=${x.delta} delta=${true} /></span></button></li>`)}</ul>
     ${comp && html`<h3>Oppure aumenta quello che resta</h3>
       <p class="small muted">Le porzioni rimaste crescono finché il piatto torna circa alle calorie del piatto intero; gli altri pasti di oggi si riducono di conseguenza.</p>
       <ul class="results alt"><li><button onClick=${onCompensate}><span>
         <b>${comp.items.filter((i) => i.boostedFrom != null && i.boostedFrom !== i.g).map((i) => `${short(byId, i.p)} ${formatQty(i.p, i.boostedFrom)} → ${formatQty(i.p, i.g)}`).join(', ') || 'Porzioni invariate'}</b>
-        <small class="muted">${macros(comp.after)}</small>
+        <small class="muted">${r0(comp.after.kcal)} kcal</small><${MacroDots} t=${comp.after} />
+        ${comp.capped && html`<small class="muted">Non arriva alle calorie del piatto intero: oltre questa porzione non conviene. Le calorie che mancano restano deficit in più, va bene.</small>`}
         ${comp.before.protein - comp.after.protein >= 10 && html`<small class="warn-text">Proteine ${r0(comp.before.protein)} → ${r0(comp.after.protein)} g: sazia meno, meglio non farlo spesso.</small>`}
       </span></button></li></ul>`}
   <//>`;

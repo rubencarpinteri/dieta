@@ -401,7 +401,8 @@ export function substitutes(mealObj, productId, approved, productsById, meal = n
       let g = role === 'protein' ? (item.g * oldN.protein) / n.protein : role === 'veg' ? item.g : (item.g * oldN.energyKcal) / n.energyKcal;
       const step = unitsFor(p.id).step;
       g = Math.max(step, Math.round(g / step) * step);
-      const delta = { kcal: (n.energyKcal * g - oldN.energyKcal * item.g) / 100, protein: (n.protein * g - oldN.protein * item.g) / 100 };
+      const d = (k) => ((n[k] ?? 0) * g - (oldN[k] ?? 0) * item.g) / 100;
+      const delta = { kcal: d('energyKcal'), protein: d('protein'), carbs: d('carbs'), fat: d('fat'), fiber: d('fiber') };
       return { product: p, g, delta };
     })
     // Skip swaps that would add far more calories than the original (e.g. 100 g of parmesan for chicken).
@@ -443,16 +444,21 @@ export function compensation(mealObj, productsById) {
   // Nothing worth making up for (e.g. only the salad is missing).
   if (!skipped.length || flexKcal <= 0 || full.kcal - eaten.kcal < 60) return null;
   const factor = Math.min(2.5, 1 + (full.kcal - eaten.kcal) / flexKcal);
+  // Never beyond a sensible portion: at most 25% over the recipe's largest portion
+  // (e.g. pasta tops at 150 g). Calories that do not fit simply stay as a bigger deficit.
+  const cap = (i) => Math.max(i.g, (i.max ?? i.g) * 1.25);
   const scaled = (round) => mealObj.items.map((i) => {
     if (skipped.includes(i.p) || !grows(i)) return i;
     const step = unitsFor(i.p).fine ?? i.step ?? unitsFor(i.p).step;
-    return { ...i, g: Math.max(step, round((i.g * factor) / step) * step), boostedFrom: i.g };
+    const g = Math.min(cap(i), Math.max(step, round((i.g * factor) / step) * step));
+    return { ...i, g: Math.floor(g / step + 1e-9) * step || step, boostedFrom: i.g };
   });
   // Round to kitchen units, but not so far up that the dish ends with many more calories than before.
   let items = scaled(Math.round);
   if (nutrientsOf(items.filter((i) => !skipped.includes(i.p)), productsById).kcal > full.kcal * 1.08) items = scaled(Math.floor);
   const after = nutrientsOf(items.filter((i) => !skipped.includes(i.p)), productsById);
-  return { items, before: full, after };
+  if (items.every((i) => i.boostedFrom == null || i.boostedFrom === i.g)) return null;
+  return { items, before: full, after, capped: after.kcal < full.kcal * 0.9 };
 }
 
 export const compensate = (meal, productsById) => (day) => {
