@@ -3,6 +3,16 @@ import { RECIPES } from './recipes.js';
 import { unitsFor } from './units.js';
 
 export const MEAL_ORDER = ['colazione', 'pranzo', 'bordo', 'spuntino', 'cena'];
+// Extra slots added by hand are named "<base>_<n>", e.g. "spuntino_2".
+export const baseMeal = (key) => key.split('_')[0];
+export function mealLabel(key) {
+  const [base, n] = key.split('_');
+  return (MEAL_LABEL[base] ?? base) + (n ? ` ${n}` : '');
+}
+/** The meals of a day in eating order, extra slots right after their base meal. */
+export function mealKeys(day) {
+  return Object.keys(day.meals).sort((a, b) => MEAL_ORDER.indexOf(baseMeal(a)) - MEAL_ORDER.indexOf(baseMeal(b)) || a.localeCompare(b));
+}
 export const MEAL_LABEL = { colazione: 'Colazione', pranzo: 'Pranzo', bordo: 'Pasto a bordo ✈️', spuntino: 'Spuntino', cena: 'Cena' };
 
 // Share of the daily calories per meal, by fasting protocol.
@@ -243,11 +253,12 @@ export function rebalanceDay(day, targets, split, productsById) {
   const flexible = [];
   for (const [meal, m] of Object.entries(day.meals)) {
     if (!m) continue;
-    if (m.done || m.external || m.skipped?.length || m.custom || m.leftover) { fixed.kcal += m.totals.kcal; fixed.protein += m.totals.protein; }
+    if (m.done || m.external || m.skipped?.length || m.custom || m.leftover || m.skippedMeal) { fixed.kcal += m.totals.kcal; fixed.protein += m.totals.protein; }
     else flexible.push(meal);
   }
   for (const e of day.extras ?? []) { fixed.kcal += e.kcal; fixed.protein += e.protein ?? 0; }
-  const share = flexible.reduce((sum, meal) => sum + (split[meal] ?? 0.25), 0);
+  const shareOf = (meal) => split[meal] ?? split[baseMeal(meal)] ?? 0.1;
+  const share = flexible.reduce((sum, meal) => sum + shareOf(meal), 0);
   const left = { kcal: Math.max(0, targets.kcal - fixed.kcal), protein: Math.max(0, targets.protein - fixed.protein) };
   const meals = { ...day.meals };
   // A few passes: portions are clamped to sensible ranges, so nudge the targets until the day adds up.
@@ -259,7 +270,7 @@ export function rebalanceDay(day, targets, split, productsById) {
     const sum = { kcal: 0, protein: 0 };
     const built = {};
     for (const meal of flexible) {
-      const f = (split[meal] ?? 0.25) / share;
+      const f = shareOf(meal) / share;
       built[meal] = buildFor(recipeById[day.meals[meal].recipeId], { kcal: left.kcal * f * factor.kcal, protein: left.protein * f * factor.protein }, productsById);
       sum.kcal += built[meal].totals.kcal;
       sum.protein += built[meal].totals.protein;
@@ -283,10 +294,12 @@ export function alternatives(plan, dayIndex, meal, opts, productsById, filter = 
   const { keep = [], remove = [] } = typeof filter === 'string' ? { remove: [filter] } : filter ?? {};
   const day = plan.days[dayIndex];
   const split = splitFor(opts.fasting, day.type);
-  const fits = fitsDay(day.type, meal, opts.onboard ?? DEFAULT_ONBOARD);
-  const target = { kcal: opts.targets.kcal * (split[meal] ?? 0.25), protein: opts.targets.protein * (split[meal] ?? 0.25) };
+  const base = baseMeal(meal);
+  const fits = fitsDay(day.type, base, opts.onboard ?? DEFAULT_ONBOARD);
+  const sh = split[meal] ?? split[base] ?? 0.1;
+  const target = { kcal: opts.targets.kcal * sh, protein: opts.targets.protein * sh };
   return eligibleRecipes(opts.approved)
-    .filter((r) => servesMeal(r, meal) && fits(r) && !r.ingredients.some((i) => remove.includes(i.p)))
+    .filter((r) => servesMeal(r, base) && fits(r) && !r.ingredients.some((i) => remove.includes(i.p)))
     .map((r) => ({
       recipe: r,
       meal: buildFor(r, target, productsById),
@@ -560,10 +573,10 @@ export function mealDeficit(m, productsById) {
  * meaningful amount of protein, carbs, fat or fibre. Returns { meal, deficit, from } or null.
  */
 export function rebalanceSuggestion(day, productsById, targets) {
-  const order = MEAL_ORDER.filter((m) => day.meals[m]);
+  const order = mealKeys(day).filter((m) => day.meals[m]);
   const changed = order.filter((m) => {
     const x = day.meals[m];
-    return x && (x.skipped?.length || x.custom || x.external);
+    return x && (x.skipped?.length || x.custom || x.external || x.skippedMeal);
   });
   if (!changed.length) return null;
   const deficit = Object.fromEntries(MACROS.map((k) => [k, 0]));
@@ -574,9 +587,9 @@ export function rebalanceSuggestion(day, productsById, targets) {
   const missing = MACROS.filter((k) => deficit[k] >= DEFICIT_THRESHOLD[k] && (!targets || gap[k] >= DEFICIT_THRESHOLD[k] / 2));
   if (!missing.length) return null;
   const last = Math.max(...changed.map((m) => order.indexOf(m)));
-  const open = (m) => { const x = day.meals[m]; return x && !x.done && !x.external && !changed.includes(m); };
+  const open = (m) => { const x = day.meals[m]; return x && !x.done && !x.external && !x.skippedMeal && !changed.includes(m); };
   const after = order.slice(last + 1).filter(open);
-  const target = after.find((m) => m !== 'spuntino' && m !== 'colazione') ?? after[0];
+  const target = after.find((m) => !['spuntino', 'colazione'].includes(baseMeal(m))) ?? after[0];
   if (!target) return null;
   return { meal: target, deficit, gap, missing, from: changed };
 }
@@ -609,6 +622,24 @@ export const resetMeal = (meal) => (day) => {
 };
 
 export const dismissSuggestion = (key) => (day) => ({ ...day, dismissed: { ...(day.dismissed ?? {}), [key]: true } });
+
+const ZERO = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, salt: 0 };
+
+/** Skip a meal: it counts zero and the others share the day; the meal is kept to restore it. */
+export const skipMeal = (meal) => (day) => setMeal(meal, { recipeId: day.meals[meal].recipeId, items: [], totals: ZERO, skippedMeal: true, replaced: day.meals[meal] })(day);
+export const unskipMeal = (meal) => (day) => setMeal(meal, day.meals[meal].replaced)(day);
+
+/** Add one more snack to the day ("spuntino_2", "spuntino_3"…) with a dish already chosen. */
+export const addSnack = (dish) => (day) => {
+  let n = 2;
+  while (day.meals[`spuntino_${n}`]) n++;
+  return setMeal(`spuntino_${n}`, dish)(day);
+};
+export const removeMeal = (meal) => (day) => {
+  const meals = { ...day.meals };
+  delete meals[meal];
+  return { ...day, meals };
+};
 
 export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);
 

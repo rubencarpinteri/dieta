@@ -24,6 +24,7 @@ const PATHS = {
   bookmark: 'M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z',
   bookmarkPlus: 'M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1zM12 7v6M9 10h6',
   pencil: 'M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4',
+  skip: 'M5 5l10 7-10 7V5zM19 5v14',
   lightbulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z',
 };
 

@@ -5,7 +5,7 @@ import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
   generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, setQuantity, snapshotMeal, applySaved, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
-  MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
+  MEAL_ORDER, MEAL_LABEL, mealLabel, mealKeys, skipMeal, unskipMeal, addSnack, removeMeal, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
@@ -420,6 +420,11 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
         ${dayNotes.map((a) => html`<p class="small note-inline"><${Icon} name="pill" size=${15} /> <b>${a.title}.</b> ${a.text}</p>`)}
         <div class="extras">
           ${(current.extras ?? []).map((e) => html`<span class="chip">${e.name} · ${r0(e.kcal)} kcal <button aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></span>`)}
+          <button class="ghost small" onClick=${() => {
+            const options = alternatives(plan, day, 'spuntino', opts, byId).filter((a) => a.fitsBudget);
+            const pick = options[Math.floor(Math.random() * Math.min(options.length, 6))];
+            if (pick) edit(addSnack(pick.meal));
+          }}><${Icon} name="plus" size=${16} /> Spuntino</button>
           <button class="ghost small" onClick=${() => setSheet({ kind: 'out', extra: true })}><${Icon} name="plus" size=${16} /> Extra</button>
         </div>
         ${over > targets.kcal * 0.05 && ateOut && html`<p class="small muted">Oggi sei sopra di circa ${r0(over)} kcal: ogni tanto va bene, conta la settimana. Domani riprendi il piano senza saltare pasti.</p>`}
@@ -428,7 +433,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 
     <div class="p-meals">
       ${!tipSeen && html`<p class="tip small"><${Icon} name="lightbulb" size=${16} /> Tocca il <b>nome</b> di un ingrediente per toglierlo, la <b>quantità</b> per cambiarla. Il resto della giornata si ricalcola da solo. <button class="link" onClick=${hideTip}>Ok, capito</button></p>`}
-      ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => html`<${MealCard} key=${meal} meal=${meal} m=${current.meals[meal]} byId=${byId} approved=${approved}
+      ${mealKeys(current).map((meal) => html`<${MealCard} key=${meal} meal=${meal} m=${current.meals[meal]} byId=${byId} approved=${approved}
         profile=${profile} edit=${edit} open=${(kind, extra = {}) => setSheet({ kind, meal, ...extra })}
         suggestion=${showSuggestion && suggestion.meal === meal ? suggestion : null}
         rebalance=${showSuggestion && suggestion.meal === meal && html`<${RebalanceCard} s=${suggestion} m=${current.meals[meal]} meal=${meal} plan=${plan} day=${day} opts=${opts} byId=${byId}
@@ -446,7 +451,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     </div>
 
     ${sheet?.kind === 'menu' && html`<${MealMenu} meal=${sheet.meal} m=${current.meals[sheet.meal]} onClose=${close}
-      onPick=${(kind) => setSheet({ kind, meal: sheet.meal })} onReset=${() => { edit(resetMeal(sheet.meal)); close(); }} />`}
+      onPick=${(kind) => setSheet({ kind, meal: sheet.meal })} onReset=${() => { edit(resetMeal(sheet.meal)); close(); }}
+      onSkip=${() => { edit(skipMeal(sheet.meal)); close(); }} onRemove=${() => { edit(removeMeal(sheet.meal)); close(); }} />`}
     ${sheet?.kind === 'save' && current.meals[sheet.meal] && html`<${SaveMealSheet} m=${current.meals[sheet.meal]} byId=${byId} onClose=${close}
       onSave=${(name) => { updateProfile((p) => { p.savedMeals = [...(p.savedMeals ?? []), { id: uid(), name, ...snapshotMeal(current.meals[sheet.meal]), createdAt: today() }]; }); close(); }} />`}
     ${sheet?.kind === 'saved' && html`<${SavedMealsSheet} meal=${sheet.meal} saved=${profile.savedMeals ?? []} byId=${byId} approved=${approved} updateProfile=${updateProfile} onClose=${close}
@@ -466,7 +472,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
       onAlternatives=${() => setSheet({ kind: 'alt', meal: sheet.meal, without: sheet.p })} onClose=${close} />`}
     ${sheet?.kind === 'alt' && html`<${AlternativesSheet} plan=${plan} day=${day} target=${{ meal: sheet.meal, without: sheet.without ?? null }} opts=${opts} byId=${byId} current=${current.meals[sheet.meal]}
       onPick=${(m) => { edit(setMeal(sheet.meal, m)); close(); }} onClose=${close} />`}
-    ${sheet?.kind === 'out' && html`<${EatOutSheet} profile=${profile} updateProfile=${updateProfile} title=${sheet.extra ? 'Aggiungi un extra' : `${MEAL_LABEL[sheet.meal]} fuori casa`}
+    ${sheet?.kind === 'out' && html`<${EatOutSheet} profile=${profile} updateProfile=${updateProfile} title=${sheet.extra ? 'Aggiungi un extra' : `${mealLabel(sheet.meal)} fuori casa`}
       onPick=${(preset) => { edit(sheet.extra ? addExtra(preset) : eatOut(sheet.meal, preset)); close(); }} onClose=${close} />`}
   </div>`;
 }
@@ -474,9 +480,14 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 /** One meal: name and macros, ingredients (tap name = remove, tap amount = change), two main actions and a menu. */
 function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
   const [showRecipe, setShowRecipe] = useState(false);
-  if (!m) return html`<section class="card meal"><h3>${MEAL_LABEL[meal]}</h3><p class="muted small">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
+  if (!m) return html`<section class="card meal"><h3>${mealLabel(meal)}</h3><p class="muted small">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
+  if (m.skippedMeal) return html`<section class="card meal skipped">
+    <div class="meal-top"><small class="muted">${mealLabel(meal)} · 0 kcal</small><span class="tag">saltato</span></div>
+    <p class="small muted">${recipeById[m.replaced?.recipeId]?.name ?? m.replaced?.savedName ?? 'Pasto'}: le sue calorie sono passate agli altri pasti di oggi.</p>
+    <div class="actions"><button class="ghost small" onClick=${() => edit(unskipMeal(meal))}><${Icon} name="undo" size=${16} /> Ripristina</button></div>
+  </section>`;
   if (m.external) return html`<section class="card meal done">
-    <div class="meal-top"><small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · stima</small><span class="tag">fuori casa</span></div>
+    <div class="meal-top"><small class="muted">${mealLabel(meal)} · ${r0(m.totals.kcal)} kcal · stima</small><span class="tag">fuori casa</span></div>
     <h3><${Icon} name="fork" size=${18} /> ${m.external.name}</h3>
     <${MacroDots} t=${m.totals} />
     <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}><${Icon} name="undo" size=${16} /> Torna al pasto del piano</button></div>
@@ -488,7 +499,7 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
   const modified = skipped.length || (m.custom && !m.savedId) || m.boosted;
   return html`<section class=${'card meal' + (m.done ? ' done' : '')}>
     <div class="meal-top">
-      <small class="muted">${MEAL_LABEL[meal]} · <b>${r0(m.totals.kcal)} kcal</b></small>
+      <small class="muted">${mealLabel(meal)} · <b>${r0(m.totals.kcal)} kcal</b></small>
       ${m.done ? html`<span class="tag ok">✓ mangiato</span>` : m.leftover ? html`<span class="tag">avanzo di ieri</span>` : modified ? html`<span class="tag">modificato</span>` : ''}
     </div>
     <h3>${m.savedName ?? r.name}${m.savedName ? html`<span class="tag">salvato</span>` : ''}</h3>
@@ -559,7 +570,7 @@ function MealBuilder({ meal, byId, approved, onCancel, onCreate }) {
     ${matches.length > 0 && html`<ul class="results alt">${matches.map((p) => html`<li><button onClick=${() => add(p.id)}><span><b>${p.name}</b>
       <small class="muted">di solito ${formatQty(p.id, addDefault(p.id))} · ${r0(p.nutrients.energyKcal)} kcal/100 g</small></span></button></li>`)}</ul>`}
     ${items.length > 0 && html`<p class="small"><b>${r0(t.kcal)} kcal</b></p><${MacroDots} t=${t} /><${MacroLegend} />`}
-    <button class="primary" disabled=${!ready} onClick=${() => onCreate(build(), true)}>Salva e metti a ${MEAL_LABEL[meal].toLowerCase()}</button>
+    <button class="primary" disabled=${!ready} onClick=${() => onCreate(build(), true)}>Salva e metti a ${mealLabel(meal).toLowerCase()}</button>
     <button class="ghost" disabled=${!ready} onClick=${() => onCreate(build(), false)}>Salva soltanto</button>
     <button class="ghost" onClick=${onCancel}>Indietro</button>`;
 }
@@ -576,7 +587,7 @@ function SavedMealsSheet({ meal, saved, byId, approved, updateProfile, onPick, o
   return html`<${Sheet} title="Pasti salvati" onClose=${onClose}>
     <button class="primary" onClick=${() => setCreating(true)}><${Icon} name="plus" size=${18} /> Crea un nuovo pasto</button>
     ${saved.length === 0 && html`<p class="muted small">Puoi anche salvare un pasto del piano dopo averlo modificato: menu ⋯ → "Salva questo pasto".</p>`}
-    ${saved.length > 0 && html`<p class="small muted">Tocca un pasto per metterlo a ${MEAL_LABEL[meal].toLowerCase()}. Il resto della giornata si ricalcola.</p><${MacroLegend} />`}
+    ${saved.length > 0 && html`<p class="small muted">Tocca un pasto per metterlo a ${mealLabel(meal).toLowerCase()}. Il resto della giornata si ricalcola.</p><${MacroLegend} />`}
     <ul class="results alt">${saved.map((x) => {
       const t = nutrientsOf(x.items.filter((i) => byId[i.p]), byId);
       const missing = x.items.filter((i) => !approved.has(i.p));
@@ -595,14 +606,18 @@ function SavedMealsSheet({ meal, saved, byId, approved, updateProfile, onPick, o
   <//>`;
 }
 
-function MealMenu({ meal, m, onPick, onReset, onClose }) {
+function MealMenu({ meal, m, onPick, onReset, onSkip, onRemove, onClose }) {
+  const extraSlot = meal.includes('_');
   const modified = (m.skipped ?? []).length || m.custom || m.boosted;
-  return html`<${Sheet} title=${MEAL_LABEL[meal]} onClose=${onClose}>
+  return html`<${Sheet} title=${mealLabel(meal)} onClose=${onClose}>
     <ul class="results alt menu">
       <li><button onClick=${() => onPick('add')}><${Icon} name="plus" /><span><b>Aggiungi un ingrediente</b><small class="muted">Un prodotto della tua lista, nella quantità che vuoi</small></span></button></li>
       <li><button onClick=${() => onPick('out')}><${Icon} name="fork" /><span><b>Mangiato fuori casa</b><small class="muted">Lasagna della mamma, sushi, pizza… con una stima delle calorie</small></span></button></li>
       <li><button onClick=${() => onPick('saved')}><${Icon} name="bookmark" /><span><b>Pasti salvati e nuovi</b><small class="muted">Metti un pasto che hai salvato, o creane uno da zero</small></span></button></li>
       <li><button onClick=${() => onPick('save')}><${Icon} name="bookmarkPlus" /><span><b>Salva questo pasto</b><small class="muted">Con le tue modifiche e un nome, per riusarlo quando vuoi</small></span></button></li>
+      ${extraSlot
+        ? html`<li><button onClick=${onRemove}><${Icon} name="close" /><span><b>Togli questo spuntino</b><small class="muted">Era un'aggiunta tua: sparisce dalla giornata</small></span></button></li>`
+        : html`<li><button onClick=${onSkip}><${Icon} name="skip" /><span><b>Salta questo pasto</b><small class="muted">Non lo mangi: le sue calorie passano agli altri pasti di oggi</small></span></button></li>`}
       ${modified && html`<li><button onClick=${() => confirm('Tornare al pasto come nel piano?') && onReset()}><${Icon} name="undo" /><span><b>Annulla tutte le modifiche</b><small class="muted">Ingredienti tolti, aggiunti, sostituiti e quantità tornano come nel piano</small></span></button></li>`}
     </ul>
   <//>`;
@@ -623,7 +638,7 @@ function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onC
   const list = full.length ? full : all.slice(0, 8);
   const chips = (current?.items ?? []).map((i) => i.p).filter((p) => !IGNORE_AS_MISSING.has(p));
 
-  return html`<${Sheet} title=${`Alternative per ${MEAL_LABEL[target.meal].toLowerCase()}`} onClose=${onClose}>
+  return html`<${Sheet} title=${`Alternative per ${mealLabel(target.meal).toLowerCase()}`} onClose=${onClose}>
     ${chips.length > 0 && html`
       <p class="small muted">Tocca gli ingredienti del piatto attuale: <b>1 volta 🔒 tienilo</b>, <b>2 volte ✕ toglilo</b>, 3 volte indifferente.</p>
       <div class="chips">${chips.map((p) => html`<button class=${hold[p] ?? ''} onClick=${() => cycle(p)}>
@@ -656,7 +671,7 @@ function MacroDots({ t, delta = false }) {
 /** Optional suggestion on the next meal after a meal that lost protein, carbs, fat or fibre. */
 function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
   const [openCard, setOpenCard] = useState(false);
-  const from = s.from.map((x) => MEAL_LABEL[x].replace(' ✈️', '').toLowerCase()).join(' e ');
+  const from = s.from.map((x) => mealLabel(x).replace(' ✈️', '').toLowerCase()).join(' e ');
   const summary = s.missing.map((k) => `${r0(s.deficit[k])} g di ${MACRO_NAME[k]}`).join(', ');
   const mp = openCard && s.missing.includes('protein') ? moreProtein(m, s.gap.protein, byId) : null;
   const alts = openCard ? s.missing.map((k) => [k, richerAlternative(plan, day, meal, opts, byId, k)]).filter(([, a]) => a) : [];
@@ -734,7 +749,7 @@ function AddIngredientSheet({ meal, m, approved, byId, room, onAdd, onClose }) {
     .sort((a, b) => a.name.localeCompare(b.name));
   const n = pick && byId[pick].nutrients;
   const t = pick && { kcal: (n.energyKcal * g) / 100, protein: (n.protein * g) / 100, carbs: (n.carbs * g) / 100, fat: (n.fat * g) / 100, fiber: ((n.fiber ?? 0) * g) / 100 };
-  return html`<${Sheet} title=${`Aggiungi a ${MEAL_LABEL[meal].toLowerCase()}`} onClose=${onClose}>
+  return html`<${Sheet} title=${`Aggiungi a ${mealLabel(meal).toLowerCase()}`} onClose=${onClose}>
     <p class="small muted">Solo prodotti della tua lista. ${room > 0 ? `Oggi hai ancora circa ${r0(room)} kcal disponibili.` : `Oggi sei già all'obiettivo: ogni aggiunta va oltre.`}</p>
     ${pick ? html`
       <p><b>${byId[pick].name}</b>${m.items.some((i) => i.p === pick) ? html`<small class="muted">È già nel piatto: verranno aggiunti questi grammi.</small>` : ''}</p>

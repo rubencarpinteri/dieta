@@ -348,3 +348,5 @@ summary { cursor: pointer; color: var(--accent); min-height: var(--tap); display
 .rename { display: flex; gap: 8px; align-items: center; flex: 1; padding: 8px 0; }
 .rename input { margin: 0; }
 .items li.editrow { border-top: 0; padding-bottom: 6px; }
+.meal.skipped { opacity: .75; }
+.meal.skipped p { margin: 6px 0 0; }
