@@ -269,10 +269,10 @@ function Downloading({ syncInfo, setState }) {
   const restart = () => sync.signOut().finally(() => setState((s) => ({ ...s, sync: null })));
   return html`<main class="center"><section class="card">
     <p class="muted">${{ accesso: 'Accesso in corso…', profili: 'Scarico i tuoi dati…', riserva: 'Scarico i tuoi dati (secondo tentativo)…' }[syncInfo.stage] ?? 'Scarico i tuoi dati…'}</p>
-    ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>
-      <button class="primary" onClick=${() => location.reload()}>Riprova</button>
-      <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-      <p class="small muted">Dettagli per l'assistenza: ${syncInfo.stage ?? '-'}${syncInfo.detail ? ` · ${syncInfo.detail}` : ''}</p>`}
+    ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
+    <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
+    <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v29</p>
   </section></main>`;
 }
 

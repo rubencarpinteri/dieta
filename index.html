@@ -16,6 +16,24 @@
 </head>
 <body>
   <div id="app"></div>
+  <script>
+    // If something breaks, show it on screen instead of freezing silently (useful on iPhone, where there is no console).
+    (function () {
+      function show(msg) {
+        var box = document.getElementById('crash');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'crash';
+          box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9999;padding:12px;border-radius:12px;background:#ff3b30;color:#fff;font:13px -apple-system,sans-serif;white-space:pre-wrap;word-break:break-word';
+          box.innerHTML = '<b>Errore</b> (mandami uno screenshot)<br><span></span><br><button onclick="location.reload()" style="margin-top:8px;padding:8px 14px;border:0;border-radius:8px;background:#fff;color:#ff3b30;font-weight:600">Ricarica</button>';
+          document.body.appendChild(box);
+        }
+        box.querySelector('span').textContent += msg + '\n';
+      }
+      addEventListener('error', function (e) { show((e.message || 'errore') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+      addEventListener('unhandledrejection', function (e) { var r = e.reason; show('Promise: ' + (r && (r.code || r.message) || r)); });
+    })();
+  </script>
   <script type="module" src="src/app.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
