@@ -25,13 +25,25 @@
           box = document.createElement('div');
           box.id = 'crash';
           box.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9999;padding:12px;border-radius:12px;background:#ff3b30;color:#fff;font:13px -apple-system,sans-serif;white-space:pre-wrap;word-break:break-word';
-          box.innerHTML = '<b>Errore</b> (mandami uno screenshot)<br><span></span><br><button onclick="location.reload()" style="margin-top:8px;padding:8px 14px;border:0;border-radius:8px;background:#fff;color:#ff3b30;font-weight:600">Ricarica</button>';
+          box.innerHTML = '<b>Errore</b> (mandami uno screenshot)<br><span></span><br><button onclick="location.reload()" style="margin-top:8px;padding:8px 14px;border:0;border-radius:8px;background:#fff;color:#ff3b30;font-weight:600">Ricarica</button> <button onclick="this.parentNode.remove()" style="margin-top:8px;padding:8px 14px;border:0;border-radius:8px;background:transparent;color:#fff;font-weight:600">Chiudi</button>';
           document.body.appendChild(box);
         }
         box.querySelector('span').textContent += msg + '\n';
       }
-      addEventListener('error', function (e) { show((e.message || 'errore') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
-      addEventListener('unhandledrejection', function (e) { var r = e.reason; show('Promise: ' + (r && (r.code || r.message) || r)); });
+      // Only real errors of this app: not cancelled network requests (Firebase cancels them all the time
+      // while it listens) and not the empty "Script error." that scripts from other sites produce.
+      var ours = function (where) { return typeof where === 'string' && where.indexOf(location.origin) === 0; };
+      addEventListener('error', function (e) {
+        if (!e.filename || !ours(e.filename)) return;
+        show((e.message || 'errore') + ' @ ' + e.filename.split('/').pop() + ':' + e.lineno);
+      });
+      addEventListener('unhandledrejection', function (e) {
+        var r = e.reason;
+        if (!r || r.name === 'AbortError' || r.code === 20 || !(r instanceof Error)) return;
+        var at = (r.stack || '').match(/https?:\/\/[^\s)]+/);
+        if (!at || !ours(at[0])) return;
+        show(r.message);
+      });
     })();
   </script>
   <script>
