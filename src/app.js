@@ -4,7 +4,7 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
@@ -442,6 +442,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
               onSubstitute=${(p) => setSubFor({ meal, p })} onAlternatives=${() => setAltFor({ meal, without: skipped[0] })} />`
           : m.boosted
             ? html`<p class="small muted">Porzioni aumentate per compensare. <button class="link" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button></p>`
+            : m.undoneBoost
+            ? html`<p class="small muted">Aumento annullato. <button class="link" onClick=${() => edit(redoCompensate(meal, byId))}>↻ Ripristina l'aumento</button></p>`
             : html`<p class="small muted">Tocca un ingrediente se non ce l'hai o non lo mangi.</p>`)}
         ${isOpen && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
         <div class="actions">
@@ -524,8 +526,9 @@ function MissingPanel({ m, meal, byId, approved, edit, onSubstitute, onAlternati
     <p class="small muted">Se lasci così, le calorie che mancano passano agli altri pasti di oggi non ancora mangiati.${p ? ` Oppure, senza ${short(byId, p).toLowerCase()}:` : ''}</p>
     <div class="actions">
       ${missing.map((x) => html`<button class="ghost small strong" onClick=${() => onSubstitute(x)}>🔁 Cosa faccio senza ${short(byId, x).toLowerCase()}?</button>`)}
-      ${comp && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal</button>`}
+      ${comp && !m.undoneBoost && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal</button>`}
       ${m.boosted && html`<button class="ghost small" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button>`}
+      ${!m.boosted && m.undoneBoost && html`<button class="ghost small strong" onClick=${() => edit(redoCompensate(meal, byId))}>↻ Ripristina l'aumento</button>`}
       <button class="ghost small" onClick=${onAlternatives}>🔄 Cambia piatto</button>
     </div>
     ${comp && lostProtein >= 10 && html`<p class="small muted">Con "Aumenta il resto" le calorie tornano, ma le proteine scendono da ${r0(comp.before.protein)} a ${r0(comp.after.protein)} g e il piatto sazia meno: meglio sostituire con un'altra proteina, se ce l'hai.</p>`}

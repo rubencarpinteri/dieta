@@ -459,13 +459,22 @@ export const compensate = (meal, productsById) => (day) => {
   const m = day.meals[meal];
   const c = compensation(m, productsById);
   if (!c) return day;
-  return setMeal(meal, withTotals({ ...m, items: c.items, boosted: true, custom: true }, productsById))(day);
+  const { undoneBoost, ...rest } = m;
+  return setMeal(meal, withTotals({ ...rest, items: c.items, boosted: true, custom: true }, productsById))(day);
 };
 
 export const undoCompensate = (meal, productsById) => (day) => {
   const m = day.meals[meal];
   const items = m.items.map((i) => (i.boostedFrom != null ? (({ boostedFrom, ...rest }) => ({ ...rest, g: boostedFrom }))(i) : i));
-  return setMeal(meal, withTotals({ ...m, items, boosted: false, custom: items.some((i) => i.replaces) }, productsById))(day);
+  // Keep the increased portions so the undo can itself be undone.
+  return setMeal(meal, withTotals({ ...m, items, boosted: false, undoneBoost: m.items, custom: items.some((i) => i.replaces) || (m.skipped ?? []).length > 0 }, productsById))(day);
+};
+
+export const redoCompensate = (meal, productsById) => (day) => {
+  const m = day.meals[meal];
+  if (!m.undoneBoost) return day;
+  const { undoneBoost, ...rest } = m;
+  return setMeal(meal, withTotals({ ...rest, items: undoneBoost, boosted: true, custom: true }, productsById))(day);
 };
 
 export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);
