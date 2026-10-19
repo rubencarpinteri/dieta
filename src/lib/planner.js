@@ -503,6 +503,20 @@ export const removeAdded = (meal, productId, productsById) => (day) => {
   return setMeal(meal, withTotals({ ...m, items }, productsById))(day);
 };
 
+/** Set how much of an ingredient you eat; the planned amount is kept to go back to it. */
+export const setQuantity = (meal, productId, g, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items.map((i) => {
+    if (i.p !== productId) return i;
+    const from = i.editedFrom ?? i.g;
+    const { editedFrom, ...rest } = i;
+    return g === from ? { ...rest, g } : { ...rest, g, editedFrom: from };
+  });
+  const skipped = (m.skipped ?? []).filter((x) => x !== productId);
+  const custom = items.some((i) => i.editedFrom != null || i.added || i.addedG || i.replaces) || skipped.length > 0 || !!m.boosted;
+  return setMeal(meal, withTotals({ ...m, items, skipped, custom }, productsById))(day);
+};
+
 // ── Rebalancing after a changed meal ──
 
 const MACROS = ['protein', 'carbs', 'fat', 'fiber'];
