@@ -4,7 +4,7 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
@@ -393,6 +393,9 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
   const ateOut = Object.values(current.meals).some((m) => m?.external) || (current.extras ?? []).length > 0;
   // Day-level supplement advice only when the day was changed by hand (the weekly advice covers the plan itself).
   const changedToday = ateOut || Object.values(current.meals).some((m) => m?.skipped?.length || m?.custom);
+  const suggestion = rebalanceSuggestion(current, byId, targets);
+  const suggestionKey = suggestion && `${suggestion.meal}:${suggestion.missing.join(',')}:${Math.round(suggestion.deficit.protein / 5)}:${Math.round(suggestion.deficit.fiber / 3)}`;
+  const showSuggestion = suggestion && !current.dismissed?.[suggestionKey];
 
   const setDayType = (type) => updateProfile((p) => {
     p.dayTypes[day] = type;
@@ -411,7 +414,10 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
       <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
         <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
       <${Totals} totals=${totals} targets=${targets} />
-      ${changedToday && dayAdvice(totals, targets).map((a) => html`<p class="small note-inline">💊 <b>${a.title}.</b> ${a.text}</p>`)}
+      ${changedToday && dayAdvice(totals, targets)
+        // The rebalance card on the next meal already covers these.
+        .filter((a) => !(showSuggestion && ((a.title.startsWith('Proteine') && suggestion.missing.includes('protein')) || (a.title.startsWith('Fibre') && suggestion.missing.includes('fiber')))))
+        .map((a) => html`<p class="small note-inline">💊 <b>${a.title}.</b> ${a.text}</p>`)}
     </section>
 
     ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => {
@@ -433,6 +439,9 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
             <small class="muted">${METHOD[r.method]}${r.minutes ? ` · ${r.minutes} min` : ''}${r.portable ? ' · da portare' : ''}</small></div>
           <span class="chev">${isOpen ? '▴' : '▾'}</span>
         </div>
+        ${showSuggestion && suggestion.meal === meal && html`<${RebalanceCard} s=${suggestion} m=${m} meal=${meal} plan=${plan} day=${day} opts=${opts} byId=${byId}
+          edit=${edit} onDismiss=${() => edit(dismissSuggestion(suggestionKey))} />`}
+        ${m.rebalanced && html`<p class="small muted">Riequilibrata per i macro mancanti. <button class="link" onClick=${() => edit(resetMeal(meal))}>↩︎ Torna alla versione del piano</button></p>`}
         <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
           <button disabled=${m.done} onClick=${() => edit(it.replaces ? revertSubstitute(meal, it.p, byId) : toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
             <span>${byId[it.p].name}${it.replaces ? html`<small class="muted">al posto di ${short(byId, it.replaces).toLowerCase()} · tocca per annullare</small>` : ''}</span>
@@ -513,6 +522,30 @@ function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onC
       <span><b>${recipe.name}</b><small class="muted">${r0(meal.totals.kcal)} kcal · ${r0(meal.totals.protein)} g prot. · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}${keep.length && kept < keep.length ? ` · tiene ${kept} di ${keep.length}` : ''}</small>
       <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => short(byId, i.p)).join(', ')}</small></span></button></li>`)}</ul>
   <//>`;
+}
+
+const MACRO_NAME = { protein: 'proteine', carbs: 'carboidrati', fat: 'grassi', fiber: 'fibre' };
+
+/** Optional suggestion on the next meal after a meal that lost protein, carbs, fat or fibre. */
+function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
+  const from = s.from.map((x) => MEAL_LABEL[x].replace(' ✈️', '').toLowerCase()).join(' e a ');
+  const mp = s.missing.includes('protein') ? moreProtein(m, s.gap.protein, byId) : null;
+  const alts = s.missing.map((k) => [k, richerAlternative(plan, day, meal, opts, byId, k)]).filter(([, a]) => a);
+  const seen = new Set();
+  return html`<div class="rebalance">
+    <p class="small"><b>⚖️ Riequilibrio suggerito</b> <span class="muted">(facoltativo)</span></p>
+    ${s.missing.map((k) => html`<p class="small">A ${from} hai tolto circa <b>${r0(s.deficit[k])} g di ${MACRO_NAME[k]}</b>${k === 'protein' || k === 'fiber' ? `; nel resto della giornata ne mancano ancora circa ${r0(s.gap[k])} g.` : '.'}
+      ${k === 'carbs' || k === 'fat' ? ' Le calorie sono già state spostate sugli altri pasti: recuperarli non è necessario per dimagrire.' : ''}</p>`)}
+    <div class="actions">
+      ${mp && html`<button class="ghost small strong" onClick=${() => edit(setMeal(meal, { ...mp, custom: true, rebalanced: true }))}>💪 Stesso piatto, più proteine (+${r0(mp.gain)} g)</button>`}
+      ${alts.filter(([, a]) => !seen.has(a.recipe.id) && seen.add(a.recipe.id)).map(([k, a]) => html`<button class="ghost small" onClick=${() => edit(setMeal(meal, a.meal))}>
+        🔄 ${a.recipe.name} (${r0(a.meal.totals[k])} g ${MACRO_NAME[k]})</button>`)}
+      <button class="ghost small" onClick=${onDismiss}>Ignora</button>
+    </div>
+    ${!mp && !alts.length && html`<p class="small muted">Con i tuoi prodotti questo pasto non può dare di più senza superare le calorie.</p>`}
+    ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted">💊 Se non riesci a recuperarle col cibo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine. Facoltativo, e non serve se succede solo ogni tanto.</p>`}
+    ${s.missing.includes('fiber') && html`<p class="small muted">💊 Per le fibre: più finocchio o insalata in questo pasto, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}
+  </div>`;
 }
 
 /** What to do when an ingredient is missing: swap it, make up with the rest of the dish, or change dish. */

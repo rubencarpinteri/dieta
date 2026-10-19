@@ -230,3 +230,5 @@ summary { cursor: pointer; color: var(--accent); }
 .items li b small { font-weight: 400; text-align: right; }
 .note-inline { background: var(--accent-soft); padding: 8px 10px; border-radius: 10px; }
 .results.alt small.warn-text { color: var(--warn); }
+.rebalance { margin: 10px 0 4px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--accent); }
+.rebalance .actions { margin-top: 6px; }

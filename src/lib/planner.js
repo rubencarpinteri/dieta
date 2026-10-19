@@ -477,6 +477,79 @@ export const redoCompensate = (meal, productsById) => (day) => {
   return setMeal(meal, withTotals({ ...rest, items: undoneBoost, boosted: true, custom: true }, productsById))(day);
 };
 
+// ── Rebalancing after a changed meal ──
+
+const MACROS = ['protein', 'carbs', 'fat', 'fiber'];
+// Below these amounts a missing macro is not worth a suggestion.
+export const DEFICIT_THRESHOLD = { protein: 15, carbs: 40, fat: 15, fiber: 5 };
+
+/** What a meal as planned would have given, minus what is actually eaten. */
+export function mealDeficit(m, productsById) {
+  if (!m) return null;
+  let planned;
+  if (m.external) planned = m.replaced?.totals;
+  else {
+    const original = m.items.map((i) => ({ p: i.replaces ?? i.p, g: i.replaces ? i.originalG : i.boostedFrom ?? i.g }));
+    planned = nutrientsOf(original, productsById);
+  }
+  if (!planned) return null;
+  return Object.fromEntries(MACROS.map((k) => [k, Math.max(0, (planned[k] ?? 0) - (m.totals[k] ?? 0))]));
+}
+
+/**
+ * Where to suggest a rebalance today: the next main meal not eaten yet, after meals that lost a
+ * meaningful amount of protein, carbs, fat or fibre. Returns { meal, deficit, from } or null.
+ */
+export function rebalanceSuggestion(day, productsById, targets) {
+  const order = MEAL_ORDER.filter((m) => day.meals[m]);
+  const changed = order.filter((m) => {
+    const x = day.meals[m];
+    return x && (x.skipped?.length || x.custom || x.external);
+  });
+  if (!changed.length) return null;
+  const deficit = Object.fromEntries(MACROS.map((k) => [k, 0]));
+  for (const m of changed) { const d = mealDeficit(day.meals[m], productsById); if (d) for (const k of MACROS) deficit[k] += d[k]; }
+  // Only what the rest of the day has not already made up (other meals grow automatically).
+  const totals = dayTotals(day);
+  const gap = Object.fromEntries(MACROS.map((k) => [k, Math.max(0, (targets?.[k] ?? 0) - (totals[k] ?? 0))]));
+  const missing = MACROS.filter((k) => deficit[k] >= DEFICIT_THRESHOLD[k] && (!targets || gap[k] >= DEFICIT_THRESHOLD[k] / 2));
+  if (!missing.length) return null;
+  const last = Math.max(...changed.map((m) => order.indexOf(m)));
+  const open = (m) => { const x = day.meals[m]; return x && !x.done && !x.external && !changed.includes(m); };
+  const after = order.slice(last + 1).filter(open);
+  const target = after.find((m) => m !== 'spuntino' && m !== 'colazione') ?? after[0];
+  if (!target) return null;
+  return { meal: target, deficit, gap, missing, from: changed };
+}
+
+/** The same dish with more protein and the same calories (less of the rest). */
+export function moreProtein(m, extra, productsById) {
+  const recipe = recipeById[m.recipeId];
+  if (!recipe) return null;
+  const built = buildFor(recipe, { kcal: m.totals.kcal, protein: m.totals.protein + extra }, productsById);
+  const gain = built.totals.protein - m.totals.protein;
+  return gain >= 5 ? { ...built, gain } : null;
+}
+
+const PER_KCAL = { protein: 'protein', carbs: 'carbs', fat: 'fat', fiber: 'fiber' };
+
+/** Another dish for this meal richer in the missing macro (per calorie) than the current one. */
+export function richerAlternative(plan, dayIndex, meal, opts, productsById, macro) {
+  const cur = plan.days[dayIndex].meals[meal];
+  const density = (t) => (t[PER_KCAL[macro]] ?? 0) / Math.max(1, t.kcal);
+  return alternatives(plan, dayIndex, meal, opts, productsById)
+    .filter((a) => a.recipe.id !== cur.recipeId && a.fitsBudget && a.meal.totals[macro] >= cur.totals[macro] + (macro === 'fiber' ? 2 : 5))
+    .sort((a, b) => density(b.meal.totals) - density(a.meal.totals))[0] ?? null;
+}
+
+/** Back to the plan's version of a meal (portions recomputed for the day). */
+export const resetMeal = (meal) => (day) => {
+  const m = day.meals[meal];
+  return setMeal(meal, { recipeId: m.recipeId, items: [], totals: { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, salt: 0 } })(day);
+};
+
+export const dismissSuggestion = (key) => (day) => ({ ...day, dismissed: { ...(day.dismissed ?? {}), [key]: true } });
+
 export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);
 
 /** Replace a planned meal with a meal eaten out; the planned one is kept to undo. */
