@@ -350,3 +350,5 @@ summary { cursor: pointer; color: var(--accent); min-height: var(--tap); display
 .items li.editrow { border-top: 0; padding-bottom: 6px; }
 .meal.skipped { opacity: .75; }
 .meal.skipped p { margin: 6px 0 0; }
+.inline-btn { margin: 4px 4px 4px 0; vertical-align: middle; }
+div.note-inline { margin: 8px 0; }

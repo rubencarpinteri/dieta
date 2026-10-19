@@ -5,7 +5,7 @@ import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
   generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, setQuantity, snapshotMeal, applySaved, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
-  MEAL_ORDER, MEAL_LABEL, mealLabel, mealKeys, skipMeal, unskipMeal, addSnack, removeMeal, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
+  MEAL_ORDER, MEAL_LABEL, mealLabel, mealKeys, skipMeal, unskipMeal, addSnack, removeMeal, fiberSuggestion, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
@@ -417,7 +417,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
         <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
           <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
         <${Totals} totals=${totals} targets=${targets} />
-        ${dayNotes.map((a) => html`<p class="small note-inline"><${Icon} name="pill" size=${15} /> <b>${a.title}.</b> ${a.text}</p>`)}
+        ${dayNotes.map((a) => html`<div class="small note-inline"><${Icon} name="pill" size=${15} /> <b>${a.title}.</b> ${a.text}
+          ${a.key === 'fiber' && html`<${FiberTip} day=${current} approved=${approved} byId=${byId} edit=${edit} />`}</div>`)}
         <div class="extras">
           ${(current.extras ?? []).map((e) => html`<span class="chip">${e.name} · ${r0(e.kcal)} kcal <button aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></span>`)}
           <button class="ghost small" onClick=${() => {
@@ -669,7 +670,19 @@ function MacroDots({ t, delta = false }) {
 }
 
 /** Optional suggestion on the next meal after a meal that lost protein, carbs, fat or fibre. */
+/** "Add 150 g of fennel to dinner (+3 g fibre)" with the person's own vegetables, or psyllium. */
+function FiberTip({ day, approved, byId, edit }) {
+  const tip = fiberSuggestion(day, approved, byId);
+  const name = tip && short(byId, tip.product.id).toLowerCase();
+  return html`<span>
+    ${tip
+      ? html` Puoi ${tip.already ? 'aumentare' : 'aggiungere'} ${formatQty(tip.product.id, tip.g)} di ${name} ${tip.already ? 'nel' : 'al'} pasto «${mealLabel(tip.meal).toLowerCase()}» (+${dec(tip.gain)} g di fibre)
+          <button class="ghost small strong inline-btn" onClick=${() => edit(addIngredient(tip.meal, tip.product.id, tip.g, byId))}><${Icon} name="plus" size=${14} /> Aggiungi</button>${' '}oppure prendere`
+      : ' Puoi prendere'} 5 g di psillio sciolti in un bicchiere grande d'acqua.</span>`;
+}
+
 function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
+  const dayObj = plan.days[day];
   const [openCard, setOpenCard] = useState(false);
   const from = s.from.map((x) => mealLabel(x).replace(' ✈️', '').toLowerCase()).join(' e ');
   const summary = s.missing.map((k) => `${r0(s.deficit[k])} g di ${MACRO_NAME[k]}`).join(', ');
@@ -692,7 +705,7 @@ function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
       </div>
       ${!mp && !alts.length && html`<p class="small muted">Con i tuoi prodotti questo pasto non può dare di più senza superare le calorie.</p>`}
       ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted"><${Icon} name="pill" size=${15} /> Facoltativo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine.</p>`}
-      ${s.missing.includes('fiber') && html`<p class="small muted"><${Icon} name="pill" size=${15} /> Per le fibre: più finocchio o insalata, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}`}
+      ${s.missing.includes('fiber') && html`<div class="small muted"><${FiberTip} day=${dayObj} approved=${opts.approved} byId=${byId} edit=${edit} /></div>`}`}
   </div>`;
 }
 

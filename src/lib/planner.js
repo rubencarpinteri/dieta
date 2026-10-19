@@ -1,6 +1,6 @@
 // Weekly plan generator. Hard rule: a recipe is eligible only if every ingredient is in the person's approved list.
 import { RECIPES } from './recipes.js';
-import { unitsFor } from './units.js';
+import { unitsFor, addDefault } from './units.js';
 
 export const MEAL_ORDER = ['colazione', 'pranzo', 'bordo', 'spuntino', 'cena'];
 // Extra slots added by hand are named "<base>_<n>", e.g. "spuntino_2".
@@ -662,6 +662,31 @@ export function dayTotals(day) {
 }
 
 /**
+ * A concrete way to get more fibre today with the person's own products: the vegetable from their
+ * list that gives the most fibre, added to the next meal not eaten yet (or more of it, if it is
+ * already there). Returns null when they have no suitable vegetable or every meal is eaten.
+ */
+export function fiberSuggestion(day, approved, productsById) {
+  const keys = mealKeys(day).filter((k) => { const m = day.meals[k]; return m && !m.done && !m.external && !m.skippedMeal; });
+  if (!keys.length) return null;
+  const veg = [...approved].map((id) => productsById[id])
+    .filter((p) => p && productRole(p) === 'veg' && (p.nutrients.fiber ?? 0) >= 1.5)
+    .sort((a, b) => b.nutrients.fiber - a.nutrients.fiber);
+  if (!veg.length) return null;
+  // Best: a meal still to eat that already has one of these vegetables (the dish stays coherent).
+  const has = (k, p) => day.meals[k].items.some((i) => i.p === p.id && !(day.meals[k].skipped ?? []).includes(p.id));
+  for (const k of keys) {
+    const p = veg.find((v) => has(k, v));
+    if (p) { const g = addDefault(p.id); return { meal: k, product: p, g, gain: (p.nutrients.fiber * g) / 100, already: true }; }
+  }
+  // Otherwise the richest vegetable as a side to the next main meal.
+  const meal = keys.find((k) => ['pranzo', 'cena', 'bordo'].includes(baseMeal(k))) ?? keys[0];
+  const p = veg[0];
+  const g = addDefault(p.id);
+  return { meal, product: p, g, gain: (p.nutrients.fiber * g) / 100, already: false };
+}
+
+/**
  * Advice for one day, after the changes made to it (ingredients removed, meals swapped or eaten out).
  * Only gaps that matter: about 20 g of protein or 8 g of fibre.
  */
@@ -678,7 +703,8 @@ export function dayAdvice(totals, targets) {
   if (fiberGap >= 8) {
     advice.push({
       title: 'Fibre di oggi',
-      text: `Oggi le fibre sono circa ${Math.round(totals.fiber)} g su ${targets.fiber} g: puoi aggiungere più finocchio o insalata, oppure 5 g di psillio sciolti in un bicchiere grande d'acqua.`,
+      key: 'fiber',
+      text: `Oggi le fibre sono circa ${Math.round(totals.fiber)} g su ${targets.fiber} g.`,
     });
   }
   return advice;
