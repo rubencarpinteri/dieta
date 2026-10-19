@@ -4,7 +4,7 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, changeDayType, dayTotals, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
@@ -485,6 +485,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 // Seasonings are not offered as "keep / remove" choices: almost every dish has them.
 const IGNORE_AS_MISSING = new Set(['sale', 'pepe_nero', 'paprika', 'prezzemolo', 'basilico', 'limone', 'olio_evo']);
 const short = (byId, p) => byId[p].name.split(' – ')[0];
+const nutrientsFull = (m, byId) => nutrientsOf(m.items, byId);
 
 function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onClose }) {
   // Like holding cards: each ingredient can be kept (the new dish must have it) or removed (must not).
@@ -519,10 +520,11 @@ function MissingPanel({ m, meal, byId, approved, edit, onSubstitute, onAlternati
   const p = missing[0];
   const lostProtein = comp ? comp.before.protein - comp.after.protein : 0;
   return html`<div class="missing">
-    <p class="small"><b>Barrato = non lo mangi, non viene contato.</b>${p ? ` Ti manca ${short(byId, p).toLowerCase()}? Puoi:` : ''}</p>
+    <p class="small"><b>Barrato = non lo mangi, non viene contato.</b> Il piatto intero era ${r0(nutrientsFull(m, byId).kcal)} kcal, così è ${r0(m.totals.kcal)} kcal.</p>
+    <p class="small muted">Se lasci così, le calorie che mancano passano agli altri pasti di oggi non ancora mangiati.${p ? ` Oppure, senza ${short(byId, p).toLowerCase()}:` : ''}</p>
     <div class="actions">
       ${missing.map((x) => html`<button class="ghost small strong" onClick=${() => onSubstitute(x)}>🔁 Cosa faccio senza ${short(byId, x).toLowerCase()}?</button>`)}
-      ${comp && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto (${r0(comp.after.kcal)} kcal)</button>`}
+      ${comp && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal</button>`}
       ${m.boosted && html`<button class="ghost small" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button>`}
       <button class="ghost small" onClick=${onAlternatives}>🔄 Cambia piatto</button>
     </div>
@@ -537,13 +539,14 @@ function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onC
   const sign = (n) => (n > 0 ? '+' : '') + r0(n);
   const macros = (t) => `${r0(t.kcal)} kcal · P ${r0(t.protein)} g · C ${r0(t.carbs)} g · G ${r0(t.fat)} g`;
   return html`<${Sheet} title=${`Senza ${short(byId, p).toLowerCase()}`} onClose=${onClose}>
-    <p class="small muted">Piatto originale: ${macros(comp?.before ?? m.totals)}</p>
+    <p class="small muted">Piatto intero: ${macros(comp?.before ?? nutrientsFull(m, byId))}<br />Senza ${short(byId, p).toLowerCase()}: ${macros(m.totals)}</p>
     <h3>Mettici qualcos'altro</h3>
     <p class="small muted">Prodotti della tua lista che fanno la stessa funzione, nella quantità ${how}. L'abbinamento lo giudichi tu.</p>
     ${list.length === 0 && html`<p class="muted small">Nella tua lista non c'è niente di simile per questo pasto.</p>`}
     <ul class="results alt">${list.map((x) => html`<li><button onClick=${() => onPick(x)}>
       <span><b>${x.product.name}</b><small class="muted">${formatQty(x.product.id, x.g)} · ${sign(x.delta.kcal)} kcal · ${sign(x.delta.protein)} g proteine rispetto all'originale</small></span></button></li>`)}</ul>
     ${comp && html`<h3>Oppure aumenta quello che resta</h3>
+      <p class="small muted">Le porzioni rimaste crescono finché il piatto torna circa alle calorie del piatto intero; gli altri pasti di oggi si riducono di conseguenza.</p>
       <ul class="results alt"><li><button onClick=${onCompensate}><span>
         <b>${comp.items.filter((i) => i.boostedFrom != null && i.boostedFrom !== i.g).map((i) => `${short(byId, i.p)} ${formatQty(i.p, i.boostedFrom)} → ${formatQty(i.p, i.g)}`).join(', ') || 'Porzioni invariate'}</b>
         <small class="muted">${macros(comp.after)}</small>

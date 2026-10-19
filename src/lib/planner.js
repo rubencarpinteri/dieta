@@ -251,18 +251,26 @@ export function rebalanceDay(day, targets, split, productsById) {
   const left = { kcal: Math.max(0, targets.kcal - fixed.kcal), protein: Math.max(0, targets.protein - fixed.protein) };
   const meals = { ...day.meals };
   // A few passes: portions are clamped to sensible ranges, so nudge the targets until the day adds up.
+  // Portions move in kitchen steps (a pouch of rice, an egg), so a pass can overshoot: keep the pass
+  // closest to the calories left, counting going over worse than staying a little under.
   const factor = { kcal: 1, protein: 1 };
-  for (let pass = 0; pass < 4 && flexible.length; pass++) {
+  let best = null;
+  for (let pass = 0; pass < 6 && flexible.length; pass++) {
     const sum = { kcal: 0, protein: 0 };
+    const built = {};
     for (const meal of flexible) {
       const f = (split[meal] ?? 0.25) / share;
-      meals[meal] = buildFor(recipeById[day.meals[meal].recipeId], { kcal: left.kcal * f * factor.kcal, protein: left.protein * f * factor.protein }, productsById);
-      sum.kcal += meals[meal].totals.kcal;
-      sum.protein += meals[meal].totals.protein;
+      built[meal] = buildFor(recipeById[day.meals[meal].recipeId], { kcal: left.kcal * f * factor.kcal, protein: left.protein * f * factor.protein }, productsById);
+      sum.kcal += built[meal].totals.kcal;
+      sum.protein += built[meal].totals.protein;
     }
+    const miss = sum.kcal > left.kcal ? (sum.kcal - left.kcal) * 2 : left.kcal - sum.kcal;
+    if (!best || miss < best.miss) best = { miss, built };
     factor.kcal *= clamp(left.kcal / (sum.kcal || 1), 0.7, 1.4);
-    factor.protein *= clamp(left.protein / (sum.protein || 1), 0.7, 1.4);
+    // Protein never pushes calories: it can only grow while the calories are not over.
+    factor.protein = sum.kcal > left.kcal ? 1 : Math.min(1.3, factor.protein * clamp(left.protein / (sum.protein || 1), 0.8, 1.2));
   }
+  if (best) Object.assign(meals, best.built);
   return { ...day, meals };
 }
 
