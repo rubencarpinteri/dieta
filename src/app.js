@@ -205,6 +205,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
 
   return html`
     ${targets.warnings.map((w) => html`<p class="warn">${w}</p>`)}
+    ${plan.targetKcal && Math.abs(plan.targetKcal - targets.kcal) > 50 && html`<p class="warn">Questo piano è stato creato per ${plan.targetKcal} kcal al giorno, ma ora il tuo obiettivo è ${targets.kcal} kcal. Genera un nuovo piano (in fondo alla pagina) per aggiornare le porzioni.</p>`}
+    ${!plan.targetKcal && html`<p class="warn">Questo piano è stato creato con una versione precedente dell'app. Genera un nuovo piano (in fondo alla pagina) per avere le porzioni giuste per il tuo obiettivo.</p>`}
     <div class="days">${plan.days.map((_, i) => { const l = dayLabel(plan, i); return html`
       <button class=${i === day ? 'on' : ''} onClick=${() => { setDay(i); setOpen(null); }}>
         <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot">✈️</span>`}</button>`; })}</div>
@@ -257,7 +259,7 @@ function Totals({ totals, targets }) {
   const bars = [['Calorie', totals.kcal, targets.kcal, 'kcal'], ['Proteine', totals.protein, targets.protein, 'g'], ['Carboidrati', totals.carbs, targets.carbs, 'g'], ['Grassi', totals.fat, targets.fat, 'g'], ['Fibre', totals.fiber, targets.fiber, 'g']];
   return html`<div class="totals">${bars.map(([l, v, t, u]) => html`
     <div class="bar"><div class="bar-label"><span>${l}</span><span>${r0(v)} / ${t} ${u}</span></div>
-      <div class="track"><div class=${'fill' + (v > t * 1.1 ? ' over' : '')} style=${`width:${Math.min(100, (v / t) * 100)}%`}></div></div></div>`)}
+      <div class="track"><div class=${'fill' + (v > t * (l === 'Calorie' ? 1.05 : 1.15) ? ' over' : '')} style=${`width:${Math.min(100, (v / t) * 100)}%`}></div></div></div>`)}
     ${totals.salt > 6 && html`<p class="small warn-text">Sale: ${dec(totals.salt)} g (consigliato massimo 5-6 g). Bevi acqua e non aggiungerne altro.</p>`}</div>`;
 }
 

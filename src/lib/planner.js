@@ -69,11 +69,25 @@ export function portion(recipe, target, productsById) {
     // Vegetables are free to grow: fill volume when the meal is still short.
     scaleRole('veg', Math.max(0, target.kcal - total('kcal')), 'energyKcal');
   }
+  // Calories come first: if protein pushed the meal over, shrink carbs, then fats, then protein (down to their minimums).
+  for (const role of ['carb', 'fat', 'protein']) {
+    const excess = total('kcal') - target.kcal;
+    if (excess > 0) scaleRole(role, -excess, 'energyKcal');
+  }
+  // Round to kitchen units; round down when the meal is already at or over target.
+  const over = total('kcal') >= target.kcal;
   for (const i of items) {
     if (i.role === 'fixed') continue;
-    i.g = clamp(roundTo(i.g, i.step ?? unitsFor(i.p).step), i.min, i.max);
+    const step = i.step ?? unitsFor(i.p).step;
+    const rounded = over && i.role !== 'veg' ? Math.floor(i.g / step + 1e-9) * step : roundTo(i.g, step);
+    i.g = clamp(rounded, i.min, i.max);
   }
   return items.filter((i) => i.g > 0);
+}
+
+/** Calories of a recipe at its smallest sensible portion. */
+export function minKcal(recipe, productsById) {
+  return recipe.ingredients.reduce((s, i) => s + (productsById[i.p].nutrients.energyKcal * i.min) / 100, 0);
 }
 
 // Small seeded RNG so "rigenera" gives a new plan but a saved seed reproduces the same plan.
@@ -98,6 +112,14 @@ export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes,
   const days = [];
   const recent = [];
 
+  const fitsFor = (type, meal) => {
+    const day = fitsDay(type, meal, onboard);
+    const budget = targets.kcal * split[meal] * 1.1;
+    const fit = (r) => day(r) && minKcal(r, productsById) <= budget;
+    fit.loose = day;
+    return fit;
+  };
+
   for (let d = 0; d < 7; d++) {
     const type = dayTypes?.[d] ?? 'casa';
     const meals = {};
@@ -112,21 +134,33 @@ export function generateWeek({ approved, targets, fasting = 'nessuno', dayTypes,
         meals[meal] = { ...prev, leftover: true };
         continue;
       }
-      picks[meal] = pickMeal({ meal, fits: fitsDay(type, meal, onboard), pool, recent, treatsUsed, random, cooking });
+      picks[meal] = pickMeal({ meal, fits: fitsFor(type, meal), pool, recent, treatsUsed, random, cooking });
     }
-    // Too much salt in one day (cured meats, crackers): re-pick the saltiest meal a few times.
-    for (let tries = 0; tries < 6; tries++) {
+    // Re-pick a meal when the day goes over the calorie target (a recipe whose smallest portion is too big)
+    // or has too much salt (cured meats, crackers). Keep the best attempt.
+    let best = null;
+    for (let tries = 0; tries < 10; tries++) {
       Object.assign(meals, balanceDay(picks, meals, targets, split, productsById));
-      if (dayTotals({ meals }).salt <= MAX_SALT_PER_DAY) break;
-      const [meal] = Object.entries(meals).filter(([, m]) => m && !m.leftover).sort(([, a], [, b]) => b.totals.salt - a.totals.salt)[0];
-      picks[meal] = pickMeal({ meal, fits: fitsDay(type, meal, onboard), pool, recent, treatsUsed, random, cooking }) ?? picks[meal];
+      const t = dayTotals({ meals });
+      const kcalOver = t.kcal > targets.kcal * MAX_KCAL_OVER;
+      const saltOver = t.salt > MAX_SALT_PER_DAY;
+      const penalty = Math.max(0, t.kcal / targets.kcal - 1) * 10 + Math.max(0, t.salt - MAX_SALT_PER_DAY);
+      if (!best || penalty < best.penalty) best = { penalty, meals: { ...meals } };
+      if (!kcalOver && !saltOver) break;
+      const own = Object.entries(meals).filter(([, m]) => m && !m.leftover);
+      const [meal] = kcalOver
+        ? own.sort(([ma, a], [mb, b]) => (b.totals.kcal - targets.kcal * split[mb]) - (a.totals.kcal - targets.kcal * split[ma]))[0]
+        : own.sort(([, a], [, b]) => b.totals.salt - a.totals.salt)[0];
+      picks[meal] = pickMeal({ meal, fits: fitsFor(type, meal), pool, recent, treatsUsed, random, cooking }) ?? picks[meal];
     }
+    Object.assign(meals, best.meals);
     days.push({ type, meals });
   }
-  return { seed, days };
+  return { seed, days, targetKcal: targets.kcal };
 }
 
 const MAX_SALT_PER_DAY = 7;
+const MAX_KCAL_OVER = 1.05;
 
 /** Portion every picked meal, then nudge per-meal targets so the whole day lands on the daily targets. */
 function balanceDay(picks, fixedMeals, targets, split, productsById) {
@@ -156,6 +190,7 @@ function balanceDay(picks, fixedMeals, targets, split, productsById) {
 
 function pickMeal({ meal, fits, pool, recent, treatsUsed, random, cooking }) {
   let options = pool.filter((r) => r.meals.includes(meal) && fits(r));
+  if (!options.length && fits.loose) options = pool.filter((r) => r.meals.includes(meal) && fits.loose(r));
   // Cooking every day: skip long batch recipes, unless nothing else fits (e.g. the on-board list).
   if (cooking === 'momento' && options.some((r) => !r.batch || r.minutes <= 15)) options = options.filter((r) => !r.batch || r.minutes <= 15);
   const fresh = options.filter((r) => !recent.slice(-4).includes(r.id) && (!r.treat || treatsUsed.n < MAX_TREATS_PER_WEEK));
@@ -177,7 +212,10 @@ export function buildMeal(recipe, meal, targets, split, productsById) {
 export function swapMeal(plan, dayIndex, meal, opts, productsById) {
   const current = plan.days[dayIndex].meals[meal]?.recipeId;
   const fits = fitsDay(plan.days[dayIndex].type, meal, opts.onboard ?? DEFAULT_ONBOARD);
-  const options = eligibleRecipes(opts.approved).filter((r) => r.meals.includes(meal) && r.id !== current && fits(r));
+  const split = FASTING[opts.fasting].split;
+  const all = eligibleRecipes(opts.approved).filter((r) => r.meals.includes(meal) && r.id !== current && fits(r));
+  const inBudget = all.filter((r) => minKcal(r, productsById) <= opts.targets.kcal * split[meal] * 1.1);
+  const options = inBudget.length ? inBudget : all;
   if (!options.length) return plan;
   const recipe = options[Math.floor(Math.random() * options.length)];
   const days = plan.days.map((day, i) => (i !== dayIndex ? day : {
