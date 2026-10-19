@@ -14,13 +14,14 @@ import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
 import { parseFitdays } from './lib/fitdays.js';
 import * as sync from './sync.js';
+import { Icon } from './icons.js';
 
 const CATEGORIES = {
   proteine: 'Carne, pesce, uova e salumi', cereali: 'Pasta, riso, pane e cracker', latticini: 'Latte, formaggi e dessert proteici',
   verdure: 'Verdure', frutta: 'Frutta', frutta_secca: 'Frutta secca', condimenti: 'Condimenti e salse',
   aromi: 'Spezie e aromi', dolci: 'Dolci e biscotti', pronti: 'Piatti pronti',
 };
-const METHOD = { microonde: '⚡ Microonde', friggitrice: '💨 Friggitrice ad aria', padella: '🍳 Padella', pentola: '🍝 Pentola', nessuna: '🥪 Senza cottura' };
+const METHOD = { microonde: 'Microonde', friggitrice: 'Friggitrice ad aria', padella: 'Padella', pentola: 'Pentola', nessuna: 'Senza cottura' };
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 const recipeById = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 const r0 = (n) => Math.round(n);
@@ -218,7 +219,7 @@ function App() {
 
   const targets = dailyTargets({ ...profile, age: ageFrom(profile.birthYear) });
   const ctx = { state, profile, products, byId, targets, update, updateProfile, setState, syncInfo };
-  const TABS = [['piano', '🗓️', 'Piano'], ['prodotti', '🛒', 'Prodotti'], ['spesa', '📝', 'Spesa'], ['peso', '⚖️', 'Peso'], ['profilo', '👤', 'Profilo']];
+  const TABS = [['piano', 'calendar', 'Piano'], ['prodotti', 'basket', 'Prodotti'], ['spesa', 'checklist', 'Spesa'], ['peso', 'scale', 'Peso'], ['profilo', 'person', 'Profilo']];
 
   return html`
     <header class="top">
@@ -234,8 +235,8 @@ function App() {
       ${tab === 'profilo' && html`<${ProfileTab} ...${ctx} />`}
     </main>
     <nav class="tabs">
-      ${TABS.map(([id, icon, label]) => html`<button class=${tab === id ? 'on' : ''} onClick=${() => { setTab(id); scrollTo(0, 0); }}>
-        <span aria-hidden="true">${icon}</span>${label}</button>`)}
+      ${TABS.map(([id, icon, label]) => html`<button class=${tab === id ? 'on' : ''} aria-current=${tab === id ? 'page' : undefined} onClick=${() => { setTab(id); scrollTo(0, 0); }}>
+        <${Icon} name=${icon} size=${24} /><span>${label}</span></button>`)}
     </nav>`;
 }
 
@@ -411,22 +412,22 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
       ${stale && html`<p class="warn small">Il piano è stato creato per ${plan.targetKcal ?? 'un altro'} kcal, ora il tuo obiettivo è ${targets.kcal}: <button class="link" onClick=${() => confirm('Generare un nuovo piano per i prossimi 7 giorni?') && newPlan()}>rigeneralo</button>.</p>`}
       <div class="days">${plan.days.map((_, i) => { const l = dayLabel(plan, i); return html`
         <button class=${i === day ? 'on' : ''} onClick=${() => { setDay(i); close(); }}>
-          <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot">✈️</span>`}</button>`; })}</div>
+          <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot" title="Giorno di volo"><${Icon} name="plane" size=${12} label="Volo" /></span>`}</button>`; })}</div>
       <section class="card tight">
         <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
           <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
         <${Totals} totals=${totals} targets=${targets} />
-        ${dayNotes.map((a) => html`<p class="small note-inline">💊 <b>${a.title}.</b> ${a.text}</p>`)}
+        ${dayNotes.map((a) => html`<p class="small note-inline"><${Icon} name="pill" size=${15} /> <b>${a.title}.</b> ${a.text}</p>`)}
         <div class="extras">
           ${(current.extras ?? []).map((e) => html`<span class="chip">${e.name} · ${r0(e.kcal)} kcal <button aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></span>`)}
-          <button class="ghost small" onClick=${() => setSheet({ kind: 'out', extra: true })}>＋ Extra</button>
+          <button class="ghost small" onClick=${() => setSheet({ kind: 'out', extra: true })}><${Icon} name="plus" size=${16} /> Extra</button>
         </div>
         ${over > targets.kcal * 0.05 && ateOut && html`<p class="small muted">Oggi sei sopra di circa ${r0(over)} kcal: ogni tanto va bene, conta la settimana. Domani riprendi il piano senza saltare pasti.</p>`}
       </section>
     </div>
 
     <div class="p-meals">
-      ${!tipSeen && html`<p class="tip small">👆 Tocca il <b>nome</b> di un ingrediente per toglierlo, la <b>quantità</b> per cambiarla. Il resto della giornata si ricalcola da solo. <button class="link" onClick=${hideTip}>Ok, capito</button></p>`}
+      ${!tipSeen && html`<p class="tip small"><${Icon} name="lightbulb" size=${16} /> Tocca il <b>nome</b> di un ingrediente per toglierlo, la <b>quantità</b> per cambiarla. Il resto della giornata si ricalcola da solo. <button class="link" onClick=${hideTip}>Ok, capito</button></p>`}
       ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => html`<${MealCard} key=${meal} meal=${meal} m=${current.meals[meal]} byId=${byId} approved=${approved}
         profile=${profile} edit=${edit} open=${(kind, extra = {}) => setSheet({ kind, meal, ...extra })}
         suggestion=${showSuggestion && suggestion.meal === meal ? suggestion : null}
@@ -435,7 +436,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     </div>
 
     <div class="p-week">
-      ${advice.length > 0 && html`<details class="card note"><summary><b>💊 Integratori consigliati per la settimana</b></summary>
+      ${advice.length > 0 && html`<details class="card note"><summary><b><${Icon} name="pill" size=${16} /> Integratori consigliati per la settimana</b></summary>
         ${advice.map((a) => html`<p class="small"><b>${a.title}.</b> ${a.text}</p>`)}
         <p class="muted small">Suggerimenti generali: se hai condizioni mediche, chiedi prima al medico o al farmacista.</p></details>`}
       <section class="card tight">
@@ -467,9 +468,9 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
   if (!m) return html`<section class="card meal"><h3>${MEAL_LABEL[meal]}</h3><p class="muted small">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
   if (m.external) return html`<section class="card meal done">
     <div class="meal-top"><small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · stima</small><span class="tag">fuori casa</span></div>
-    <h3>🍽️ ${m.external.name}</h3>
+    <h3><${Icon} name="fork" size=${18} /> ${m.external.name}</h3>
     <${MacroDots} t=${m.totals} />
-    <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}>↩︎ Torna al pasto del piano</button></div>
+    <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}><${Icon} name="undo" size=${16} /> Torna al pasto del piano</button></div>
   </section>`;
   const r = recipeById[m.recipeId];
   const skipped = m.skipped ?? [];
@@ -496,11 +497,11 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
     ${showRecipe && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
     <div class="actions">
       ${m.done
-        ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Non l'ho mangiato</button>`
-        : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Segna come mangiato</button>
-          <button class="ghost small" onClick=${() => open('alt')}>🔄 Cambia</button>`}
-      <button class="ghost small" onClick=${() => setShowRecipe(!showRecipe)}>${showRecipe ? 'Chiudi ricetta' : '📖 Ricetta'}</button>
-      ${!m.done && html`<button class="ghost small" aria-label="Altre azioni" onClick=${() => open('menu')}>⋯</button>`}
+        ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}><${Icon} name="undo" size=${16} /> Non l'ho mangiato</button>`
+        : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}><${Icon} name="check" size=${16} /> Segna come mangiato</button>
+          <button class="ghost small" onClick=${() => open('alt')}><${Icon} name="swap" size=${16} /> Cambia</button>`}
+      <button class="ghost small" aria-expanded=${showRecipe} onClick=${() => setShowRecipe(!showRecipe)}><${Icon} name="book" size=${16} /> ${showRecipe ? 'Chiudi ricetta' : 'Ricetta'}</button>
+      ${!m.done && html`<button class="ghost small icon-only" aria-label="Altre azioni" onClick=${() => open('menu')}><${Icon} name="more" size=${20} /></button>`}
     </div>
   </section>`;
 }
@@ -509,9 +510,9 @@ function MealMenu({ meal, m, onPick, onReset, onClose }) {
   const modified = (m.skipped ?? []).length || m.custom || m.boosted;
   return html`<${Sheet} title=${MEAL_LABEL[meal]} onClose=${onClose}>
     <ul class="results alt menu">
-      <li><button onClick=${() => onPick('add')}><span><b>＋ Aggiungi un ingrediente</b><small class="muted">Un prodotto della tua lista, nella quantità che vuoi</small></span></button></li>
-      <li><button onClick=${() => onPick('out')}><span><b>🍽️ Mangiato fuori casa</b><small class="muted">Lasagna della mamma, sushi, pizza… con una stima delle calorie</small></span></button></li>
-      ${modified && html`<li><button onClick=${() => confirm('Tornare al pasto come nel piano?') && onReset()}><span><b>↩︎ Annulla tutte le modifiche</b><small class="muted">Ingredienti tolti, aggiunti, sostituiti e quantità tornano come nel piano</small></span></button></li>`}
+      <li><button onClick=${() => onPick('add')}><${Icon} name="plus" /><span><b>Aggiungi un ingrediente</b><small class="muted">Un prodotto della tua lista, nella quantità che vuoi</small></span></button></li>
+      <li><button onClick=${() => onPick('out')}><${Icon} name="fork" /><span><b>Mangiato fuori casa</b><small class="muted">Lasagna della mamma, sushi, pizza… con una stima delle calorie</small></span></button></li>
+      ${modified && html`<li><button onClick=${() => confirm('Tornare al pasto come nel piano?') && onReset()}><${Icon} name="undo" /><span><b>Annulla tutte le modifiche</b><small class="muted">Ingredienti tolti, aggiunti, sostituiti e quantità tornano come nel piano</small></span></button></li>`}
     </ul>
   <//>`;
 }
@@ -540,7 +541,7 @@ function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onC
     ${all.length === 0 && html`<p class="muted">Nessun piatto possibile con questi vincoli: prova a togliere un 🔒.</p>`}
     ${keep.length > 0 && !full.length && all.length > 0 && html`<p class="warn small">Nessun piatto ha tutti gli ingredienti che vuoi tenere: ecco quelli che ne hanno di più.</p>`}
     ${list.length > 0 && html`<${MacroLegend} />`}
-    ${list.length > 0 && html`<button class="ghost" onClick=${() => onPick(list[Math.floor(Math.random() * list.length)].meal)}>🎲 Scegli tu a caso</button>`}
+    ${list.length > 0 && html`<button class="ghost" onClick=${() => onPick(list[Math.floor(Math.random() * list.length)].meal)}><${Icon} name="dice" size=${18} /> Scegli tu a caso</button>`}
     <ul class="results alt">${list.map(({ recipe, meal, fitsBudget, kept }) => html`<li><button onClick=${() => onPick(meal)}>
       <span><b>${recipe.name}</b><${MacroDots} t=${meal.totals} /><small class="muted">${r0(meal.totals.kcal)} kcal · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}${keep.length && kept < keep.length ? ` · tiene ${kept} di ${keep.length}` : ''}</small>
       <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => short(byId, i.p)).join(', ')}</small></span></button></li>`)}</ul>
@@ -571,8 +572,8 @@ function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
   const seen = new Set();
   return html`<div class="rebalance">
     <div class="rb-head">
-      <button class="link" onClick=${() => setOpenCard(!openCard)}>⚖️ Da ${from} mancano ${summary} · ${openCard ? 'chiudi' : 'vedi proposte'}</button>
-      <button class="x" aria-label="Ignora il suggerimento" onClick=${onDismiss}>✕</button>
+      <button class="link" aria-expanded=${openCard} onClick=${() => setOpenCard(!openCard)}><${Icon} name="balance" size=${16} /> Da ${from} mancano ${summary} · ${openCard ? 'chiudi' : 'vedi proposte'}</button>
+      <button class="x" aria-label="Ignora il suggerimento" onClick=${onDismiss}><${Icon} name="close" size=${16} /></button>
     </div>
     ${openCard && html`
       ${s.missing.map((k) => html`<p class="small">${k === 'protein' || k === 'fiber'
@@ -584,8 +585,8 @@ function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
           🔄 ${a.recipe.name} (${r0(a.meal.totals[k])} g ${MACRO_NAME[k]})</button>`)}
       </div>
       ${!mp && !alts.length && html`<p class="small muted">Con i tuoi prodotti questo pasto non può dare di più senza superare le calorie.</p>`}
-      ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted">💊 Facoltativo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine.</p>`}
-      ${s.missing.includes('fiber') && html`<p class="small muted">💊 Per le fibre: più finocchio o insalata, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}`}
+      ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted"><${Icon} name="pill" size=${15} /> Facoltativo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine.</p>`}
+      ${s.missing.includes('fiber') && html`<p class="small muted"><${Icon} name="pill" size=${15} /> Per le fibre: più finocchio o insalata, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}`}
   </div>`;
 }
 
@@ -627,7 +628,7 @@ function QuantitySheet({ m, p, byId, room, onSet, onClose }) {
     <${MacroLegend} />
     ${delta.kcal > 0 && delta.kcal > room && html`<p class="warn small">Oggi ti restano circa ${r0(Math.max(0, room))} kcal: con questa quantità superi l'obiettivo di circa ${r0(delta.kcal - room)} kcal (gli altri pasti non ancora mangiati scenderanno per compensare, se possono).</p>`}
     <button class="primary" disabled=${!(g > 0) || g === item.g} onClick=${() => onSet(g)}>Conferma ${formatQty(p, g)}</button>
-    ${planned !== item.g && html`<button class="ghost" onClick=${() => onSet(planned)}>↩︎ Torna alla quantità del piano (${formatQty(p, planned)})</button>`}
+    ${planned !== item.g && html`<button class="ghost" onClick=${() => onSet(planned)}><${Icon} name="undo" size=${16} /> Torna alla quantità del piano (${formatQty(p, planned)})</button>`}
   <//>`;
 }
 
@@ -683,7 +684,7 @@ function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onA
         ${comp.before.protein - comp.after.protein >= 10 && html`<small class="warn-text">Proteine ${r0(comp.before.protein)} → ${r0(comp.after.protein)} g: sazia meno, meglio non farlo spesso.</small>`}
       </span></button></li></ul>`}
     <h3>Oppure cambia piatto</h3>
-    <button class="ghost" onClick=${onAlternatives}>🔄 Piatti senza ${short(byId, p).toLowerCase()}</button>
+    <button class="ghost" onClick=${onAlternatives}><${Icon} name="swap" size=${18} /> Piatti senza ${short(byId, p).toLowerCase()}</button>
   <//>`;
 }
 
@@ -696,7 +697,7 @@ function EatOutSheet({ profile, updateProfile, title, onPick, onClose }) {
     onPick(preset);
   };
   const row = (p) => html`<li><button onClick=${() => onPick(p)}><span><b>${p.name}</b><small class="muted">${r0(p.kcal)} kcal${p.protein ? ` · ${r0(p.protein)} g prot.` : ''}${p.note ? ` · ${p.note}` : ''}</small></span></button>
-    ${p.custom && html`<button class="ghost small" aria-label="Elimina" onClick=${() => updateProfile((x) => { x.customPresets = x.customPresets.filter((c) => c.id !== p.id); })}>✕</button>`}</li>`;
+    ${p.custom && html`<button class="x danger" aria-label="Elimina" onClick=${() => updateProfile((x) => { x.customPresets = x.customPresets.filter((c) => c.id !== p.id); })}><${Icon} name="close" size=${16} /></button>`}</li>`;
   return html`<${Sheet} title=${title} onClose=${onClose}>
     <p class="small muted">Sono stime medie: le porzioni reali variano. Le altre portate della giornata si ricalcolano di conseguenza.</p>
     ${mine.length > 0 && html`<h3>I tuoi</h3><ul class="results alt">${mine.map(row)}</ul>`}
@@ -746,7 +747,7 @@ function ProductsTab({ profile, products, updateProfile, update }) {
     <div class="segmented"><button class=${filter === 'mine' ? 'on' : ''} onClick=${() => setFilter('mine')}>La mia lista (${approved.size})</button>
       <button class=${filter === 'all' ? 'on' : ''} onClick=${() => setFilter('all')}>Dispensa di casa (${products.length})</button></div>
     <input class="search" type="search" placeholder="Cerca un prodotto" value=${query} onInput=${(e) => setQuery(e.target.value)} />
-    <button class="primary" onClick=${() => setAdding(true)}>＋ Aggiungi un prodotto</button>
+    <button class="primary" onClick=${() => setAdding(true)}><${Icon} name="plus" size=${18} /> Aggiungi un prodotto</button>
     ${filter === 'all' && html`<p class="muted small">Spunta ✓ gli alimenti che vuoi nel tuo piano. Gli altri restano in dispensa per chi vive con te.</p>`}
     ${Object.entries(CATEGORIES).map(([cat, label]) => {
       const list = visible.filter((p) => p.category === cat).sort((a, b) => (qualityScore(b).score ?? -1) - (qualityScore(a).score ?? -1));
@@ -754,7 +755,7 @@ function ProductsTab({ profile, products, updateProfile, update }) {
         <ul class="plist">${list.map((p) => html`<li>
           <button class="prow" onClick=${() => setDetail(p)}><${ScoreBadge} product=${p} />
             <span class="pname">${p.name}<small class="muted">${r0(p.nutrients.energyKcal)} kcal · ${dec(p.nutrients.protein)} g prot. /100 g${p.flags.length ? ' · ⚠️' : ''}</small></span></button>
-          <button class=${'tick' + (approved.has(p.id) ? ' on' : '')} aria-label="Nella mia lista" onClick=${() => toggle(p.id)}>✓</button>
+          <button class=${'tick' + (approved.has(p.id) ? ' on' : '')} aria-label=${`${p.name}: ${approved.has(p.id) ? 'nella mia lista' : 'non nella mia lista'}`} aria-pressed=${approved.has(p.id)} onClick=${() => toggle(p.id)}><${Icon} name="check" size=${18} /></button>
         </li>`)}</ul></section>`;
     })}
     ${detail && html`<${ProductDetail} product=${detail} onClose=${() => setDetail(null)} />`}
@@ -768,10 +769,34 @@ function ProductsTab({ profile, products, updateProfile, update }) {
     }} />`}`;
 }
 
+/**
+ * Modal sheet: grabber and swipe down to dismiss on touch, Esc on desktop, close button on the
+ * leading edge (iOS places Cancel/Close there), focus moved into the sheet while it is open.
+ */
 function Sheet({ title, onClose, children }) {
+  const ref = useRef(null);
+  const drag = useRef(null);
+  const [dy, setDy] = useState(0);
+  useEffect(() => {
+    const prev = document.activeElement;
+    ref.current?.focus();
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    addEventListener('keydown', onKey);
+    return () => { removeEventListener('keydown', onKey); prev?.focus?.(); };
+  }, []);
+  const start = (e) => { if (e.pointerType !== 'mouse') drag.current = e.clientY; };
+  const move = (e) => { if (drag.current != null) setDy(Math.max(0, e.clientY - drag.current)); };
+  const end = () => { if (drag.current == null) return; drag.current = null; if (dy > 90) onClose(); else setDy(0); };
   return html`<div class="overlay" onClick=${(e) => e.target === e.currentTarget && onClose()}>
-    <div class="sheet" role="dialog" aria-label=${title}>
-      <div class="sheet-head"><h2>${title}</h2><button class="ghost small" onClick=${onClose}>Chiudi</button></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label=${title} tabIndex="-1" ref=${ref}
+      style=${dy ? `transform: translateY(${dy}px); transition: none` : ''}>
+      <div class="sheet-grab" onPointerDown=${start} onPointerMove=${move} onPointerUp=${end} onPointerCancel=${end}>
+        <span class="grabber" aria-hidden="true"></span>
+        <div class="sheet-head">
+          <button class="close-btn" aria-label="Chiudi" onClick=${onClose}><${Icon} name="close" size=${16} /></button>
+          <h2>${title}</h2>
+        </div>
+      </div>
       ${children}</div></div>`;
 }
 
@@ -909,7 +934,7 @@ function ReportImport({ onRead }) {
       setStatus('Lettura non riuscita. Serve la connessione la prima volta; altrimenti inserisci i valori a mano.');
     }
   };
-  return html`<label class="ghost filebtn">📷 Importa referto Fitdays<input type="file" accept="image/*" onChange=${read} /></label>
+  return html`<label class="ghost filebtn"><${Icon} name="camera" size=${18} /> Importa referto Fitdays<input type="file" accept="image/*" onChange=${read} /></label>
     ${status && html`<p class="small muted">${status}</p>`}`;
 }
 
@@ -974,7 +999,7 @@ function WeightTab({ profile, updateProfile }) {
       <span>${new Date(w.date + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
         ${BODY.some(([k]) => w[k] != null) && html`<small class="muted">${BODY.filter(([k]) => w[k] != null).map(([k, l, u]) => `${l} ${dec(w[k])}${u === 'livello' ? '' : ' ' + u}`).join(' · ')}</small>`}</span>
       <b>${dec(w.kg)} kg</b>
-      <button class="ghost small" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); if (p.weights.length) p.weightKg = p.weights.at(-1).kg; })}>✕</button></li>`)}</ul></section>`}`;
+      <button class="x danger" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); if (p.weights.length) p.weightKg = p.weights.at(-1).kg; })}><${Icon} name="close" size=${16} /></button></li>`)}</ul></section>`}`;
 }
 
 /** Least-squares slope over the last 28 days, in kg per week. */
@@ -1055,7 +1080,7 @@ function ProfileTab({ state, profile, targets, update, updateProfile, setState, 
       <h2>Persone</h2>
       <ul class="plist">${state.profiles.map((p) => html`<li class="wrow"><span>${p.name}${p.id === state.activeId ? ' (attivo)' : ''}</span>
         ${p.id !== state.activeId && html`<button class="ghost small" onClick=${() => update((s) => { s.activeId = p.id; })}>Usa</button>`}</li>`)}</ul>
-      <button class="ghost" onClick=${() => update((s) => { s.household.mode = 'coppia'; s.activeId = null; })}>＋ Aggiungi una persona</button>
+      <button class="ghost" onClick=${() => update((s) => { s.household.mode = 'coppia'; s.activeId = null; })}><${Icon} name="plus" size=${18} /> Aggiungi una persona</button>
       <p class="muted small">Ogni persona ha la sua lista di prodotti, il suo piano e il suo peso. La dispensa è in comune. Con la sincronizzazione attiva, ognuno usa il proprio telefono.</p>
     </section>
     <${SyncPanel} state=${state} setState=${setState} syncInfo=${syncInfo} />
