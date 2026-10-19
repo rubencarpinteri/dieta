@@ -4,12 +4,12 @@ import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
-  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
   MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
-import { formatQty } from './lib/units.js';
+import { formatQty, unitsFor, addDefault } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
 import { parseFitdays } from './lib/fitdays.js';
@@ -367,6 +367,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
   const [altFor, setAltFor] = useState(null);
   const [outFor, setOutFor] = useState(null);
   const [subFor, setSubFor] = useState(null);
+  const [addFor, setAddFor] = useState(null);
   const opts = { approved, targets, fasting: profile.fasting, cooking: profile.cooking, dayTypes: profile.dayTypes, onboard: profile.onboard ?? DEFAULT_ONBOARD };
 
   const newPlan = () => updateProfile((p) => {
@@ -443,8 +444,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
           edit=${edit} onDismiss=${() => edit(dismissSuggestion(suggestionKey))} />`}
         ${m.rebalanced && html`<p class="small muted">Riequilibrata per i macro mancanti. <button class="link" onClick=${() => edit(resetMeal(meal))}>↩︎ Torna alla versione del piano</button></p>`}
         <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
-          <button disabled=${m.done} onClick=${() => edit(it.replaces ? revertSubstitute(meal, it.p, byId) : toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
-            <span>${byId[it.p].name}${it.replaces ? html`<small class="muted">al posto di ${short(byId, it.replaces).toLowerCase()} · tocca per annullare</small>` : ''}</span>
+          <button disabled=${m.done} onClick=${() => edit(it.replaces ? revertSubstitute(meal, it.p, byId) : it.added || it.addedG ? removeAdded(meal, it.p, byId) : toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
+            <span>${byId[it.p].name}${it.replaces ? html`<small class="muted">al posto di ${short(byId, it.replaces).toLowerCase()} · tocca per annullare</small>` : ''}${it.added ? html`<small class="muted">aggiunto da te · tocca per toglierlo</small>` : ''}${it.addedG ? html`<small class="muted">+${formatQty(it.p, it.addedG)} aggiunti · tocca per toglierli</small>` : ''}</span>
             <b>${formatQty(it.p, it.g)}${it.boostedFrom != null && it.boostedFrom !== it.g ? html`<small class="muted">era ${formatQty(it.p, it.boostedFrom)}</small>` : ''}</b></button></li>`)}</ul>
         ${!m.done && (skipped.length
           ? html`<${MissingPanel} m=${m} meal=${meal} byId=${byId} approved=${approved} edit=${edit}
@@ -460,6 +461,7 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
             ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Non l'ho mangiato</button>`
             : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Segna come mangiato</button>
               <button class="ghost small" onClick=${() => setAltFor({ meal, without: null })}>🔄 Alternative</button>
+              <button class="ghost small" onClick=${() => setAddFor(meal)}>＋ Ingrediente</button>
               <button class="ghost small" onClick=${() => setOutFor({ meal })}>🍽️ Fuori casa</button>`}
           <button class="ghost small" onClick=${() => setOpen(isOpen ? null : meal)}>${isOpen ? 'Nascondi ricetta' : '📖 Ricetta'}</button>
         </div>
@@ -475,6 +477,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     </section>
     ${over > targets.kcal * 0.05 && ateOut && html`<p class="note-text small">Oggi sei sopra di circa ${r0(over)} kcal. Ogni tanto va benissimo: il risultato si vede sulla settimana. Non saltare pasti domani per compensare, riprendi semplicemente il piano.</p>`}
 
+    ${addFor && html`<${AddIngredientSheet} meal=${addFor} m=${current.meals[addFor]} approved=${approved} byId=${byId} room=${targets.kcal - totals.kcal}
+      onAdd=${(p, g) => { edit(addIngredient(addFor, p, g, byId)); setAddFor(null); }} onClose=${() => setAddFor(null)} />`}
     ${subFor && html`<${SubstituteSheet} m=${current.meals[subFor.meal]} meal=${subFor.meal} p=${subFor.p} approved=${approved} byId=${byId}
       onPick=${(s) => { edit(substitute(subFor.meal, subFor.p, s.product.id, s.g, byId)); setSubFor(null); }}
       onCompensate=${() => { edit(compensate(subFor.meal, byId)); setSubFor(null); }} onClose=${() => setSubFor(null)} />`}
@@ -559,6 +563,39 @@ function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
     ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted">💊 Se non riesci a recuperarle col cibo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine. Facoltativo, e non serve se succede solo ogni tanto.</p>`}
     ${s.missing.includes('fiber') && html`<p class="small muted">💊 Per le fibre: più finocchio o insalata in questo pasto, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}
   </div>`;
+}
+
+function AddIngredientSheet({ meal, m, approved, byId, room, onAdd, onClose }) {
+  const [q, setQ] = useState('');
+  const [pick, setPick] = useState(null);
+  const [g, setG] = useState(0);
+  const choose = (id) => { setPick(id); setG(addDefault(id)); };
+  const step = pick ? Math.min(unitsFor(pick).fine ?? unitsFor(pick).step, unitsFor(pick).step) : 1;
+  const products = [...approved].map((id) => byId[id]).filter(Boolean)
+    .filter((p) => !q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const n = pick && byId[pick].nutrients;
+  const t = pick && { kcal: (n.energyKcal * g) / 100, protein: (n.protein * g) / 100, carbs: (n.carbs * g) / 100, fat: (n.fat * g) / 100, fiber: ((n.fiber ?? 0) * g) / 100 };
+  return html`<${Sheet} title=${`Aggiungi a ${MEAL_LABEL[meal].toLowerCase()}`} onClose=${onClose}>
+    <p class="small muted">Solo prodotti della tua lista. ${room > 0 ? `Oggi hai ancora circa ${r0(room)} kcal disponibili.` : `Oggi sei già all'obiettivo: ogni aggiunta va oltre.`}</p>
+    ${pick ? html`
+      <p><b>${byId[pick].name}</b>${m.items.some((i) => i.p === pick) ? html`<small class="muted">È già nel piatto: verranno aggiunti questi grammi.</small>` : ''}</p>
+      <div class="stepper">
+        <button class="ghost" onClick=${() => setG(Math.max(step, g - step))} aria-label="Meno">−</button>
+        <input type="number" inputmode="decimal" value=${g} onInput=${(e) => setG(Math.max(0, num(e.target.value) || 0))} />
+        <span>g</span>
+        <button class="ghost" onClick=${() => setG(g + step)} aria-label="Più">+</button>
+      </div>
+      <p class="small">${formatQty(pick, g)} · <b>${r0(t.kcal)} kcal</b></p>
+      <${MacroDots} t=${t} />
+      <${MacroLegend} />
+      <button class="primary" disabled=${!(g > 0)} onClick=${() => onAdd(pick, g)}>Aggiungi al piatto</button>
+      <button class="ghost" onClick=${() => setPick(null)}>Scegli un altro prodotto</button>`
+    : html`
+      <input class="search" type="search" placeholder="Cerca tra i tuoi prodotti" value=${q} onInput=${(e) => setQ(e.target.value)} />
+      <ul class="results alt">${products.map((p) => html`<li><button onClick=${() => choose(p.id)}><span><b>${p.name}</b>
+        <small class="muted">${r0(p.nutrients.energyKcal)} kcal per 100 g · di solito ${formatQty(p.id, addDefault(p.id))}</small></span></button></li>`)}</ul>`}
+  <//>`;
 }
 
 /** What to do when an ingredient is missing: swap it, make up with the rest of the dish, or change dish. */

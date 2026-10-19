@@ -35,6 +35,14 @@ export const UNITS = {
 };
 
 const DEFAULT = { step: 10 };
+
+// A sensible amount to start from when adding a product to a meal by hand.
+const ADD_DEFAULT = { parmigiano_grattugiato: 10, olio_evo: 5, burro_conad: 5, sale: 1, pepe_nero: 1, paprika: 1, prezzemolo: 3, basilico: 3, aglio: 3, limone: 10, fresca_mayo: 15, pesto_senza_aglio: 20, mutti_datterini: 100, insalata: 100, finocchio: 150, cipolla: 50, soffritto: 40, zucchero: 5, nutella: 15 };
+export function addDefault(id) {
+  if (ADD_DEFAULT[id]) return ADD_DEFAULT[id];
+  const u = unitsFor(id);
+  return u.unit ? u.unit[2] : 50;
+}
 export const unitsFor = (id) => UNITS[id] ?? DEFAULT;
 
 /** "2 uova (100 g)", "1 cucchiaio (10 g)", "250 ml". */

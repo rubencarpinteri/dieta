@@ -483,6 +483,26 @@ export const redoCompensate = (meal, productsById) => (day) => {
   return setMeal(meal, withTotals({ ...rest, items: undoneBoost, boosted: true, custom: true }, productsById))(day);
 };
 
+/** Add a product from the approved list to a meal (or more of one already in it). */
+export const addIngredient = (meal, productId, g, productsById) => (day) => {
+  const m = day.meals[meal];
+  const existing = m.items.find((i) => i.p === productId);
+  const items = existing
+    ? m.items.map((i) => (i.p === productId ? { ...i, g: i.g + g, addedG: (i.addedG ?? 0) + g } : i))
+    : [...m.items, { p: productId, g, role: 'fixed', min: g, max: g, added: true }];
+  const skipped = (m.skipped ?? []).filter((x) => x !== productId);
+  return setMeal(meal, withTotals({ ...m, items, skipped, custom: true }, productsById))(day);
+};
+
+/** Undo an addition: remove the added product, or the extra grams added to one already there. */
+export const removeAdded = (meal, productId, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items
+    .filter((i) => !(i.p === productId && i.added))
+    .map((i) => (i.p === productId && i.addedG ? (({ addedG, ...rest }) => ({ ...rest, g: i.g - addedG }))(i) : i));
+  return setMeal(meal, withTotals({ ...m, items }, productsById))(day);
+};
+
 // ── Rebalancing after a changed meal ──
 
 const MACROS = ['protein', 'carbs', 'fat', 'fiber'];

@@ -245,3 +245,6 @@ summary { cursor: pointer; color: var(--accent); }
 .macros { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--muted); margin: 3px 0; font-variant-numeric: tabular-nums; }
 .results.alt .macros { display: flex; }
 .results.alt .macros > span { display: inline-flex; align-items: center; }
+.stepper { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.stepper .ghost { width: 48px; margin: 0; padding: 8px 0; font-size: 20px; }
+.stepper input { width: 90px; margin: 0; text-align: center; }
