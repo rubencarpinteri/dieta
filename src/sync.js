@@ -20,7 +20,9 @@ export async function firebase() {
     import(`${SDK}/firebase-app.js`), import(`${SDK}/firebase-auth.js`), import(`${SDK}/firebase-firestore.js`),
   ]);
   const a = app.initializeApp(FIREBASE_CONFIG);
-  fb = { auth, store, au: auth.getAuth(a), db: store.getFirestore(a) };
+  // Long polling instead of the streaming connection: Safari on iPhone (above all the app added to the
+  // Home Screen) can leave the stream open without ever delivering data.
+  fb = { auth, store, au: auth.getAuth(a), db: store.initializeFirestore(a, { experimentalForceLongPolling: true }) };
   return fb;
 }
 
@@ -90,10 +92,12 @@ export async function pushShared(hid, state) {
   await store.updateDoc(store.doc(db, 'households', hid), { ...sharedPart(state), updatedAt: state.sharedUpdatedAt ?? Date.now() });
 }
 
-/** Listen to remote changes. Returns an unsubscribe function. */
-export async function listen(hid, { onProfiles, onShared, onError }) {
+/** Listen to remote changes. Each account only receives its own profiles (the rules enforce it).
+ *  Returns an unsubscribe function. */
+export async function listen(hid, uid, { onProfiles, onShared, onError }) {
   const { store, db } = await firebase();
-  const offA = store.onSnapshot(store.collection(db, 'households', hid, 'profiles'),
+  const mine = store.query(store.collection(db, 'households', hid, 'profiles'), store.where('data.owner', '==', uid));
+  const offA = store.onSnapshot(mine,
     (snap) => onProfiles(snap.docs.map((d) => d.data())), onError);
   const offB = store.onSnapshot(store.doc(db, 'households', hid),
     (snap) => snap.exists() && onShared(snap.data()), onError);

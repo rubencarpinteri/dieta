@@ -19,9 +19,15 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
         && request.resource.data.members.toSet() == resource.data.members.toSet().union([request.auth.uid].toSet());
 
+      // A profile (plan, weights, body data) is private to the account that owns it, even inside the household.
       match /profiles/{pid} {
-        allow read, write: if signedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/households/$(hid)).data.members;
+        function member() {
+          return signedIn() && request.auth.uid in get(/databases/$(database)/documents/households/$(hid)).data.members;
+        }
+        allow read, delete: if member() && resource.data.data.owner == request.auth.uid;
+        allow create: if member() && request.resource.data.data.owner == request.auth.uid;
+        allow update: if member() && resource.data.data.owner == request.auth.uid
+          && request.resource.data.data.owner == request.auth.uid;
       }
     }
   }

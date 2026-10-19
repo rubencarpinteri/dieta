@@ -52,16 +52,18 @@ function useSync(state, setState) {
     let alive = true;
     sent.current = {};
     ready.current = { profiles: false, shared: false };
-    setInfo({ status: 'connecting' });
+    setInfo({ status: 'connecting', stage: 'accesso', since: Date.now() });
     sync.onUser(async (user) => {
       stopListen();
       stopListen = () => {};
       if (!alive) return;
       if (!user || user.uid !== state.sync.uid) { setInfo({ status: 'signedout' }); return; }
-      const off = await sync.listen(hid, {
+      setInfo((x) => ({ ...x, stage: 'profili' }));
+      const off = await sync.listen(hid, user.uid, {
         onProfiles: (docs) => {
           setState((s) => {
-            const profiles = [...s.profiles];
+            // Other people's profiles stay private: drop any copy this device still has from before.
+            const profiles = s.profiles.filter((p) => !p.owner || p.owner === s.sync?.uid);
             for (const d of docs) {
               const i = profiles.findIndex((p) => p.id === d.data.id);
               const local = profiles[i];
@@ -72,7 +74,7 @@ function useSync(state, setState) {
             }
             // Open this account's own profile. Someone who just joined has none yet: no active profile
             // means the app asks them to create theirs instead of showing someone else's plan.
-            const mine = profiles.find((p) => p.owner === s.sync?.uid) ?? profiles.find((p) => !p.owner);
+            const mine = profiles[0];
             const activeId = profiles.some((p) => p.id === s.activeId) ? s.activeId : mine?.id ?? null;
             return { ...s, profiles, activeId };
           });
@@ -100,6 +102,7 @@ function useSync(state, setState) {
     const t = setTimeout(async () => {
       try {
         for (const p of state.profiles) {
+          if (p.owner && p.owner !== state.sync.uid) continue;
           const json = JSON.stringify(p);
           if (sent.current[p.id] !== json) { await sync.pushProfile(hid, p); sent.current[p.id] = json; }
         }
@@ -126,7 +129,7 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
 
   const run = async (fn) => { setBusy(true); setMsg(''); try { await fn(); } catch (e) { setMsg(sync.syncError(e)); } setBusy(false); };
   const connect = (hid, u, replaceLocal) => setState((s) => {
-    const profiles = replaceLocal ? [] : s.profiles.map((p) => ({ ...p, owner: p.owner ?? u.uid }));
+    const profiles = replaceLocal ? [] : s.profiles.filter((p) => !p.owner || p.owner === u.uid).map((p) => ({ ...p, owner: p.owner ?? u.uid }));
     const mine = profiles.find((p) => p.owner === u.uid);
     return { ...s, sync: { uid: u.uid, email: u.email, hid }, profiles, activeId: mine?.id ?? null };
   });
@@ -209,7 +212,7 @@ function App() {
   if (error) return html`<main class="center"><p>${error}</p></main>`;
   if (!base) return html`<main class="center"><p class="muted">Caricamento…</p></main>`;
   if (!profile && state.sync?.hid && syncInfo.status === 'connecting' && !state.profiles.length) {
-    return html`<main class="center"><p class="muted">Scarico i tuoi dati…</p></main>`;
+    return html`<${Downloading} syncInfo=${syncInfo} setState=${setState} />`;
   }
   if (!profile) return html`<${Onboarding} state=${state} base=${base} setState=${setState} update=${update} syncInfo=${syncInfo} onDone=${(p, mode) => update((s) => {
     if (mode) s.household.mode = mode;
@@ -238,6 +241,20 @@ function App() {
       ${TABS.map(([id, icon, label]) => html`<button class=${tab === id ? 'on' : ''} aria-current=${tab === id ? 'page' : undefined} onClick=${() => { setTab(id); scrollTo(0, 0); }}>
         <${Icon} name=${icon} size=${24} /><span>${label}</span></button>`)}
     </nav>`;
+}
+
+/** Shown while a new device downloads its data. After a while it explains and offers a way out. */
+function Downloading({ syncInfo, setState }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, []);
+  const slow = Date.now() - (syncInfo.since ?? Date.now()) > 15000;
+  const restart = () => sync.signOut().finally(() => setState((s) => ({ ...s, sync: null })));
+  return html`<main class="center"><section class="card">
+    <p class="muted">${syncInfo.stage === 'profili' ? 'Scarico i tuoi dati…' : 'Accesso in corso…'}</p>
+    ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>
+      <button class="primary" onClick=${() => location.reload()}>Riprova</button>
+      <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>`}
+  </section></main>`;
 }
 
 /** Read a backup exported from another device. Rejects anything that is not one of our backups. */
