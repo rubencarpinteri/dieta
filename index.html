@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Dieta</title>
   <meta name="description" content="Piano alimentare personale con i prodotti che compri tu." />
   <meta name="theme-color" content="#2f7d4f" />
@@ -33,6 +33,11 @@
       addEventListener('error', function (e) { show((e.message || 'errore') + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
       addEventListener('unhandledrejection', function (e) { var r = e.reason; show('Promise: ' + (r && (r.code || r.message) || r)); });
     })();
+  </script>
+  <script>
+    // No zooming: Safari on iPhone ignores user-scalable=no, so pinch and double-tap are stopped here too.
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (t) { document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('touchmove', function (e) { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
   </script>
   <script type="module" src="src/app.js"></script>
   <script>

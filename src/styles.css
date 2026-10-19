@@ -53,6 +53,9 @@ html { font-size: 17px; -webkit-text-size-adjust: 100%; }
 @media (min-width: 960px) and (pointer: fine) { html { font-size: 15px; } }
 
 * { box-sizing: border-box; }
+/* No double-tap zoom anywhere; fields stay at 16 px or more so iPhone never zooms in when one is tapped. */
+html { touch-action: manipulation; }
+input, select, textarea { font-size: max(16px, 1rem) !important; }
 body {
   margin: 0;
   background: var(--bg);
@@ -352,3 +355,18 @@ summary { cursor: pointer; color: var(--accent); min-height: var(--tap); display
 .meal.skipped p { margin: 6px 0 0; }
 .inline-btn { margin: 4px 4px 4px 0; vertical-align: middle; }
 div.note-inline { margin: 8px 0; }
+
+/* ── iPhone: fewer things at once ── */
+details.mini-note { margin: 10px 0 0; }
+details.mini-note > summary { min-height: 36px; font-size: .882rem; gap: 6px; color: var(--muted); }
+details.mini-note > summary::-webkit-details-marker { display: none; }
+details.mini-note > summary::after { content: '›'; margin-left: auto; font-size: 1.1rem; transition: transform .2s; }
+details.mini-note[open] > summary::after { transform: rotate(90deg); }
+.p-day > details.mini-note { margin: 0 0 10px; }
+.add-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 16px; break-inside: avoid; }
+.meal.collapsed { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; padding-top: 12px; padding-bottom: 12px; }
+.meal.collapsed .meal-top { display: flex; }
+.collapsed-name { display: block; font-weight: 600; margin-top: 2px; }
+.meal-top button.tag { border: 0; min-height: 0; cursor: pointer; }
+.meal-meta .link { font-size: inherit; }
+@media (prefers-reduced-motion: reduce) { details.mini-note > summary::after { transition: none; } }
