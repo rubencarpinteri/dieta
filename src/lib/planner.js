@@ -60,7 +60,8 @@ const MAX_TREATS_PER_WEEK = 2;
 export function nutrientsOf(items, productsById) {
   const t = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, salt: 0 };
   for (const { p, g } of items) {
-    const n = productsById[p].nutrients;
+    const n = productsById[p]?.nutrients;
+    if (!n) continue; // a product that has not arrived yet (or was removed) counts as nothing, instead of breaking the app
     t.kcal += (n.energyKcal * g) / 100;
     t.protein += (n.protein * g) / 100;
     t.carbs += (n.carbs * g) / 100;

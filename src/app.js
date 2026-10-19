@@ -58,9 +58,13 @@ function useSync(state, setState) {
       stopListen = () => {};
       if (!alive) return;
       if (!user || user.uid !== state.sync.uid) { setInfo({ status: 'signedout' }); return; }
-      setInfo((x) => ({ ...x, stage: 'profili' }));
+      setInfo((x) => ({ ...x, status: 'connecting', stage: 'profili', since: x.since ?? Date.now() }));
+      // Profiles can use products added by hand, which travel with the shared household data:
+      // apply them only once that has arrived, so a new device never sees a plan with unknown products.
+      let pending = null;
       const handlers = {
         onProfiles: (docs) => {
+          if (!ready.current.shared) { pending = docs; return; }
           setState((s) => {
             // Other people's profiles stay private: drop any copy this device still has from before.
             const profiles = s.profiles.filter((p) => !p.owner || p.owner === s.sync?.uid);
@@ -82,11 +86,20 @@ function useSync(state, setState) {
           setInfo((x) => ({ ...x, status: 'ok', at: Date.now() }));
         },
         onShared: (d) => {
-          setState((s) => ((d.updatedAt ?? 0) > (s.sharedUpdatedAt ?? 0)
-            ? { ...s, household: { ...s.household, mode: d.mode ?? s.household.mode }, customProducts: d.customProducts ?? [], sharedUpdatedAt: d.updatedAt }
-            : s));
+          setState((s) => {
+            // Products are only ever added, so both lists are kept: nothing added on either side gets lost.
+            const remote = d.customProducts ?? [];
+            const customProducts = [...remote, ...s.customProducts.filter((x) => !remote.some((y) => y.id === x.id))];
+            const newer = (d.updatedAt ?? 0) > (s.sharedUpdatedAt ?? 0);
+            return {
+              ...s, customProducts,
+              household: newer ? { ...s.household, mode: d.mode ?? s.household.mode } : s.household,
+              sharedUpdatedAt: newer ? d.updatedAt : s.sharedUpdatedAt,
+            };
+          });
           sent.current.shared = JSON.stringify({ mode: d.mode, customProducts: d.customProducts ?? [] });
           ready.current.shared = true;
+          if (pending) { const docs = pending; pending = null; handlers.onProfiles(docs); }
         },
         onError: (e) => setInfo({ status: 'error', detail: e?.code ?? String(e) }),
       };
@@ -272,7 +285,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v29</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v30</p>
   </section></main>`;
 }
 
