@@ -5,7 +5,7 @@ import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
 import {
   generateWeek, changeDayType, dayTotals, nutrientsOf, supplementAdvice, dayAdvice, substitutes, substitute, revertSubstitute, compensation, compensate, undoCompensate, redoCompensate, rebalanceSuggestion, moreProtein, richerAlternative, dismissSuggestion, resetMeal, addIngredient, removeAdded, setQuantity, snapshotMeal, applySaved, productRole, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
-  MEAL_ORDER, MEAL_LABEL, mealLabel, mealKeys, skipMeal, unskipMeal, addSnack, removeMeal, fiberSuggestion, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
+  MEAL_ORDER, MEAL_LABEL, mealLabel, mealKeys, skipMeal, unskipMeal, addSnack, removeMeal, fiberSuggestion, recipeOf, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
@@ -285,7 +285,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v34</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v35</p>
   </section></main>`;
 }
 
@@ -545,7 +545,8 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
     <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}><${Icon} name="undo" size=${16} /> Torna al pasto del piano</button></div>
   </section>`;
   // A meal you created yourself has no recipe behind it.
-  const r = recipeById[m.recipeId] ?? { name: 'Pasto personalizzato', method: null, minutes: 0, steps: [] };
+  // The recipe follows what is in the dish now, not the dish it started from.
+  const r = recipeOf(m, byId) ?? { name: 'Pasto personalizzato', method: null, minutes: 0, steps: [] };
   const skipped = m.skipped ?? [];
   const missing = skipped.filter((p) => productRole(byId[p]) !== 'other');
   const modified = skipped.length || (m.custom && !m.savedId) || m.boosted;
@@ -583,7 +584,7 @@ function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
 }
 
 function SaveMealSheet({ m, byId, onSave, onClose }) {
-  const [name, setName] = useState(m.savedName ?? recipeById[m.recipeId]?.name ?? '');
+  const [name, setName] = useState(m.savedName ?? recipeOf(m, byId)?.name ?? '');
   const snap = snapshotMeal(m);
   const t = nutrientsOf(snap.items, byId);
   return html`<${Sheet} title="Salva questo pasto" onClose=${onClose}>

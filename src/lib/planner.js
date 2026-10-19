@@ -727,3 +727,43 @@ export function supplementAdvice(avg, targets) {
   }
   return advice;
 }
+
+// ── The recipe to show for a meal, matching what is actually in it ──
+const SEASONING = new Set(['sale', 'limone', 'aglio', 'basilico', 'prezzemolo', 'paprika', 'pepe_nero']);
+const coreOf = (ids, productsById) => new Set(ids.filter((id) => !SEASONING.has(id) && productsById[id]?.category !== 'aromi'));
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+
+/**
+ * Recipe (name, method, minutes, steps) for a meal as it is now. When ingredients were removed, added or
+ * swapped, the original steps may describe another dish (a ragù without meat is pasta with oil): then the
+ * recipe whose main ingredients are exactly these is used; failing that, the original steps that still
+ * apply, plus a line for each ingredient they do not mention.
+ */
+export function recipeOf(m, productsById) {
+  const base = RECIPES.find((r) => r.id === m.recipeId);
+  const skipped = m.skipped ?? [];
+  const present = m.items.filter((i) => !skipped.includes(i.p)).map((i) => i.p);
+  const core = coreOf(present, productsById);
+  if (!base) return null;
+  if (sameSet(coreOf(base.ingredients.map((i) => i.p), productsById), core)) return base;
+  const twin = RECIPES.find((r) => sameSet(coreOf(r.ingredients.map((i) => i.p), productsById), core));
+  if (twin) return { ...twin, adapted: true };
+  const refs = (step) => [...step.matchAll(/\{(\w+)\}/g)].map((x) => x[1]);
+  const name = (id) => (productsById[id]?.name ?? id).split(' – ')[0].toLowerCase();
+  // A step about removed ingredients only is dropped; a step that still uses some of them loses the
+  // removed ones ("{soffritto} di soffritto") and says so up front.
+  const steps = base.steps.flatMap((st) => {
+    const ids = refs(st);
+    const gone = ids.filter((id) => !present.includes(id));
+    if (!gone.length) return [st];
+    if (gone.length === ids.length) return [];
+    let text = st;
+    for (const id of gone) text = text.replace(new RegExp(`\\{${id}\\}( di [^,.;]*?)?(?=,|\\.|;| per | poi | e )`), '');
+    text = text.replace(/ {2,}/g, ' ').replace(/ ,/g, ',');
+    return [`Senza ${gone.map(name).join(' e ')}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`];
+  });
+  const mentioned = new Set(steps.flatMap(refs));
+  const extra = [...core].filter((id) => !mentioned.has(id)).map((id) => `{${id}} di ${name(id)}`);
+  if (extra.length) steps.push(`${steps.length ? 'Aggiungi anche' : 'Prepara'} ${extra.join(', ')}.`);
+  return { ...base, steps, adapted: true };
+}
