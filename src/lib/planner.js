@@ -345,10 +345,11 @@ export const toggleSkip = (meal, productId, productsById) => (day) => {
 
 /** What a product mainly brings: protein, carb, fat, veg or other (spices, salt…). */
 export function productRole(product) {
-  if (['verdure'].includes(product.category)) return 'veg';
   if (['aromi'].includes(product.category) || product.unrated) return 'other';
   const n = product.nutrients;
   const kcal = n.protein * 4 + n.carbs * 4 + n.fat * 9;
+  // Potatoes are filed with vegetables but in a dish they are the starch (swap them with bread or crackers).
+  if (product.category === 'verdure') return n.energyKcal >= 50 && (n.carbs * 4) / kcal >= 0.6 ? 'carb' : 'veg';
   if (!kcal) return 'other';
   const proteinShare = (n.protein * 4) / kcal;
   // Tuna in oil, cheeses and cured meats get many calories from fat but are used as the protein of a dish.
@@ -425,8 +426,10 @@ export function compensation(mealObj, productsById) {
   const full = nutrientsOf(mealObj.items, productsById);
   const eatenItems = mealObj.items.filter((i) => !skipped.includes(i.p));
   const eaten = nutrientsOf(eatenItems, productsById);
-  // Grow the main foods of the dish (not oil, butter or seasonings).
-  const grows = (i) => i.role !== 'fixed' && ['carb', 'protein', 'veg'].includes(productRole(productsById[i.p]));
+  // Grow the main foods of the dish (not oil, butter or seasonings); vegetables only if nothing else is left.
+  const main = (i) => i.role !== 'fixed' && ['carb', 'protein'].includes(productRole(productsById[i.p]));
+  const veg = (i) => i.role !== 'fixed' && productRole(productsById[i.p]) === 'veg';
+  const grows = eatenItems.some(main) ? main : veg;
   const flexible = eatenItems.filter(grows);
   const flexKcal = nutrientsOf(flexible, productsById).kcal;
   // Nothing worth making up for (e.g. only the salad is missing).
@@ -475,6 +478,29 @@ export function dayTotals(day) {
   for (const m of Object.values(day.meals)) if (m) for (const k in t) t[k] += m.totals[k] ?? 0;
   for (const e of day.extras ?? []) { const x = presetTotals(e); for (const k in t) t[k] += x[k]; }
   return t;
+}
+
+/**
+ * Advice for one day, after the changes made to it (ingredients removed, meals swapped or eaten out).
+ * Only gaps that matter: about 20 g of protein or 8 g of fibre.
+ */
+export function dayAdvice(totals, targets) {
+  const advice = [];
+  const proteinGap = targets.protein - totals.protein;
+  if (proteinGap >= 20) {
+    advice.push({
+      title: 'Proteine di oggi',
+      text: `Oggi arrivi a circa ${Math.round(totals.protein)} g di proteine su ${targets.protein} g. Se capita ogni tanto non è un problema. Se vuoi recuperare, la scelta più semplice è uno spuntino proteico della tua lista; in alternativa una dose di proteine del siero del latte (whey, circa 25 g di polvere = 20 g di proteine), che trovi al supermercato, in farmacia o nei negozi di sport.`,
+    });
+  }
+  const fiberGap = targets.fiber - totals.fiber;
+  if (fiberGap >= 8) {
+    advice.push({
+      title: 'Fibre di oggi',
+      text: `Oggi le fibre sono circa ${Math.round(totals.fiber)} g su ${targets.fiber} g: puoi aggiungere più finocchio o insalata, oppure 5 g di psillio sciolti in un bicchiere grande d'acqua.`,
+    });
+  }
+  return advice;
 }
 
 /** Supplements suggested when the plan misses a target the approved foods cannot reach. */

@@ -1,5 +1,5 @@
 // Offline support: the app shell is cached; Open Food Facts calls always go to the network.
-const CACHE = 'dieta-v13';
+const CACHE = 'dieta-v14';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'src/styles.css', 'src/app.js', 'src/store.js', 'vendor/preact-htm.js', 'data/products.json',
   'src/lib/additives.js', 'src/lib/nutriscore.js', 'src/lib/scoring.js', 'src/lib/targets.js', 'src/lib/units.js',
