@@ -1,9 +1,9 @@
 // Offline support: the app shell is cached; Open Food Facts calls always go to the network.
-const CACHE = 'dieta-v5';
+const CACHE = 'dieta-v6';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'src/styles.css', 'src/app.js', 'src/store.js', 'vendor/preact-htm.js', 'data/products.json',
   'src/lib/additives.js', 'src/lib/nutriscore.js', 'src/lib/scoring.js', 'src/lib/targets.js', 'src/lib/units.js',
-  'src/lib/recipes.js', 'src/lib/planner.js', 'src/lib/shopping.js', 'src/lib/off.js', 'src/lib/fitdays.js', 'icons/icon.svg', 'icons/icon-180.png',
+  'src/lib/recipes.js', 'src/lib/planner.js', 'src/lib/shopping.js', 'src/lib/off.js', 'src/lib/fitdays.js', 'src/lib/presets.js', 'icons/icon.svg', 'icons/icon-180.png',
 ];
 
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));

@@ -208,25 +208,93 @@ export function buildMeal(recipe, meal, targets, split, productsById) {
   return { recipeId: recipe.id, items, totals: nutrientsOf(items, productsById) };
 }
 
-/** Swap a single meal for another eligible recipe. */
-export function swapMeal(plan, dayIndex, meal, opts, productsById) {
-  const current = plan.days[dayIndex].meals[meal]?.recipeId;
-  const fits = fitsDay(plan.days[dayIndex].type, meal, opts.onboard ?? DEFAULT_ONBOARD);
+/** Portion a recipe for an explicit target, leaving out ingredients the person is not eating. */
+function buildFor(recipe, target, productsById, skipped = []) {
+  const trimmed = skipped.length ? { ...recipe, ingredients: recipe.ingredients.filter((i) => !skipped.includes(i.p)) } : recipe;
+  const items = portion(trimmed, target, productsById);
+  return { recipeId: recipe.id, items, skipped, totals: nutrientsOf(items, productsById) };
+}
+
+const recipeById = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
+
+/**
+ * Recompute a day after a change: meals already eaten, eaten out, extras and meals with removed
+ * ingredients stay as they are; the remaining meals share what is left of the daily target.
+ */
+export function rebalanceDay(day, targets, split, productsById) {
+  const fixed = { kcal: 0, protein: 0 };
+  const flexible = [];
+  for (const [meal, m] of Object.entries(day.meals)) {
+    if (!m) continue;
+    if (m.done || m.external || m.skipped?.length || m.leftover) { fixed.kcal += m.totals.kcal; fixed.protein += m.totals.protein; }
+    else flexible.push(meal);
+  }
+  for (const e of day.extras ?? []) { fixed.kcal += e.kcal; fixed.protein += e.protein ?? 0; }
+  const share = flexible.reduce((sum, meal) => sum + (split[meal] ?? 0.25), 0);
+  const left = { kcal: Math.max(0, targets.kcal - fixed.kcal), protein: Math.max(0, targets.protein - fixed.protein) };
+  const meals = { ...day.meals };
+  // A few passes: portions are clamped to sensible ranges, so nudge the targets until the day adds up.
+  const factor = { kcal: 1, protein: 1 };
+  for (let pass = 0; pass < 4 && flexible.length; pass++) {
+    const sum = { kcal: 0, protein: 0 };
+    for (const meal of flexible) {
+      const f = (split[meal] ?? 0.25) / share;
+      meals[meal] = buildFor(recipeById[day.meals[meal].recipeId], { kcal: left.kcal * f * factor.kcal, protein: left.protein * f * factor.protein }, productsById);
+      sum.kcal += meals[meal].totals.kcal;
+      sum.protein += meals[meal].totals.protein;
+    }
+    factor.kcal *= clamp(left.kcal / (sum.kcal || 1), 0.7, 1.4);
+    factor.protein *= clamp(left.protein / (sum.protein || 1), 0.7, 1.4);
+  }
+  return { ...day, meals };
+}
+
+/** Recipes that could replace a meal, portioned for that slot. `without` excludes recipes using that product. */
+export function alternatives(plan, dayIndex, meal, opts, productsById, without = null) {
+  const day = plan.days[dayIndex];
   const split = FASTING[opts.fasting].split;
-  const all = eligibleRecipes(opts.approved).filter((r) => r.meals.includes(meal) && r.id !== current && fits(r));
-  const inBudget = all.filter((r) => minKcal(r, productsById) <= opts.targets.kcal * split[meal] * 1.1);
-  const options = inBudget.length ? inBudget : all;
-  if (!options.length) return plan;
-  const recipe = options[Math.floor(Math.random() * options.length)];
-  const days = plan.days.map((day, i) => (i !== dayIndex ? day : {
-    ...day, meals: { ...day.meals, [meal]: buildMeal(recipe, meal, opts.targets, FASTING[opts.fasting].split, productsById) },
-  }));
+  const fits = fitsDay(day.type, meal, opts.onboard ?? DEFAULT_ONBOARD);
+  const target = { kcal: opts.targets.kcal * (split[meal] ?? 0.25), protein: opts.targets.protein * (split[meal] ?? 0.25) };
+  return eligibleRecipes(opts.approved)
+    .filter((r) => r.meals.includes(meal) && fits(r) && (!without || !r.ingredients.some((i) => i.p === without)))
+    .map((r) => ({ recipe: r, meal: buildFor(r, target, productsById), fitsBudget: minKcal(r, productsById) <= target.kcal * 1.1 }))
+    .sort((a, b) => b.fitsBudget - a.fitsBudget || Math.abs(a.meal.totals.kcal - target.kcal) - Math.abs(b.meal.totals.kcal - target.kcal));
+}
+
+/** Apply a change to one day and rebalance it. `change(day)` returns the changed day. */
+export function editDay(plan, dayIndex, change, opts, productsById) {
+  const split = FASTING[opts.fasting].split;
+  const days = plan.days.map((day, i) => (i === dayIndex ? rebalanceDay(change(day), opts.targets, split, productsById) : day));
   return { ...plan, days };
+}
+
+export const setMeal = (meal, value) => (day) => ({ ...day, meals: { ...day.meals, [meal]: value } });
+
+/** Strike or restore an ingredient of a meal (only what is actually eaten is counted). */
+export const toggleSkip = (meal, productId, productsById) => (day) => {
+  const m = day.meals[meal];
+  const skipped = m.skipped?.includes(productId) ? m.skipped.filter((x) => x !== productId) : [...(m.skipped ?? []), productId];
+  const eaten = m.items.filter((i) => !skipped.includes(i.p));
+  return setMeal(meal, { ...m, skipped, totals: nutrientsOf(eaten, productsById) })(day);
+};
+
+export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);
+
+/** Replace a planned meal with a meal eaten out; the planned one is kept to undo. */
+export const eatOut = (meal, preset) => (day) => setMeal(meal, { external: preset, replaced: day.meals[meal], totals: presetTotals(preset), done: true })(day);
+export const undoEatOut = (meal) => (day) => setMeal(meal, day.meals[meal].replaced)(day);
+
+export const addExtra = (preset) => (day) => ({ ...day, extras: [...(day.extras ?? []), { ...preset, uid: Math.random().toString(36).slice(2, 8) }] });
+export const removeExtra = (uid) => (day) => ({ ...day, extras: (day.extras ?? []).filter((e) => e.uid !== uid) });
+
+export function presetTotals(p) {
+  return { kcal: p.kcal, protein: p.protein ?? 0, carbs: p.carbs ?? 0, fat: p.fat ?? 0, fiber: p.fiber ?? 0, salt: p.salt ?? 0 };
 }
 
 export function dayTotals(day) {
   const t = { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, salt: 0 };
-  for (const m of Object.values(day.meals)) if (m) for (const k in t) t[k] += m.totals[k];
+  for (const m of Object.values(day.meals)) if (m) for (const k in t) t[k] += m.totals[k] ?? 0;
+  for (const e of day.extras ?? []) { const x = presetTotals(e); for (const k in t) t[k] += x[k]; }
   return t;
 }
 

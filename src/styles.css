@@ -203,3 +203,19 @@ button:disabled { opacity: .45; cursor: default; }
 .chart .line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linejoin: round; }
 .chart .pt { fill: var(--card); stroke: var(--text); stroke-width: 1.5; }
 .label-like { font-size: 14px; color: var(--muted); margin: 14px 0 4px; }
+
+.items li > button { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 0; text-align: left; color: inherit; font-size: 14px; }
+.items li > button:disabled { opacity: 1; cursor: default; }
+.items li.off span, .items li.off b { text-decoration: line-through; opacity: .45; }
+.meal.done { border-color: var(--accent); }
+.tag.ok { background: var(--accent); color: var(--on-accent); }
+.actions { flex-wrap: wrap; }
+.ghost.strong { background: var(--accent-soft); }
+.link { color: var(--accent); font-size: 13px; padding: 0; text-decoration: underline; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.chips button { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; }
+.chips button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.results.alt li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); }
+.results.alt li > button:first-child { flex: 1; border-top: 0; padding: 10px 0; }
+.results.alt span { display: block; }
+.note-text { color: var(--muted); padding: 0 4px; }

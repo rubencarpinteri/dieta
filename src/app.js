@@ -3,7 +3,11 @@ import { load, save, exportJson, uid, today, emptyState } from './store.js';
 import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
 import { dailyTargets, ageFrom, ACTIVITY, PACE } from './lib/targets.js';
-import { generateWeek, swapMeal, dayTotals, supplementAdvice, eligibleRecipes, MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD } from './lib/planner.js';
+import {
+  generateWeek, dayTotals, supplementAdvice, eligibleRecipes, alternatives, editDay, setMeal, toggleSkip, setDone, eatOut, undoEatOut, addExtra, removeExtra,
+  MEAL_ORDER, MEAL_LABEL, FASTING, DAY_TYPES, DEFAULT_ONBOARD,
+} from './lib/planner.js';
+import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
 import { formatQty } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
@@ -177,6 +181,8 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     return diff >= 0 && diff < 7 ? diff : 0;
   });
   const [open, setOpen] = useState(null);
+  const [altFor, setAltFor] = useState(null);
+  const [outFor, setOutFor] = useState(null);
   const opts = { approved, targets, fasting: profile.fasting, cooking: profile.cooking, dayTypes: profile.dayTypes, onboard: profile.onboard ?? DEFAULT_ONBOARD };
 
   const newPlan = () => updateProfile((p) => {
@@ -197,6 +203,10 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
   const totals = dayTotals(current);
   const avg = plan.days.map(dayTotals).reduce((a, t) => { for (const k in t) a[k] = (a[k] ?? 0) + t[k] / 7; return a; }, {});
   const advice = supplementAdvice(avg, targets);
+
+  const edit = (change) => updateProfile((p) => { p.plan = editDay(p.plan, day, change, opts, byId); });
+  const over = totals.kcal - targets.kcal;
+  const ateOut = Object.values(current.meals).some((m) => m?.external) || (current.extras ?? []).length > 0;
 
   const setDayType = (type) => updateProfile((p) => {
     p.dayTypes[day] = type;
@@ -221,23 +231,53 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => {
       const m = current.meals[meal];
       if (!m) return html`<section class="card"><h3>${MEAL_LABEL[meal]}</h3><p class="muted">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
+      if (m.external) return html`<section class="card meal done">
+        <small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · ${r0(m.totals.protein)} g prot. · stima</small>
+        <h3>🍽️ ${m.external.name} <span class="tag">fuori casa</span></h3>
+        ${m.external.note && html`<p class="small muted">${m.external.note}</p>`}
+        <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}>↩︎ Torna al pasto del piano</button></div>
+      </section>`;
       const r = recipeById[m.recipeId];
       const isOpen = open === meal;
-      return html`<section class="card meal">
+      const skipped = m.skipped ?? [];
+      return html`<section class=${'card meal' + (m.done ? ' done' : '')}>
         <div class="meal-head" onClick=${() => setOpen(isOpen ? null : meal)}>
           <div><small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · ${r0(m.totals.protein)} g prot.</small>
-            <h3>${r.name}${m.leftover ? html` <span class="tag">avanzo di ieri</span>` : ''}</h3>
+            <h3>${r.name}${m.leftover ? html` <span class="tag">avanzo di ieri</span>` : ''}${m.done ? html` <span class="tag ok">✓ mangiato</span>` : ''}</h3>
             <small class="muted">${METHOD[r.method]}${r.minutes ? ` · ${r.minutes} min` : ''}${r.portable ? ' · da portare' : ''}</small></div>
           <span class="chev">${isOpen ? '▴' : '▾'}</span>
         </div>
-        <ul class="items">${m.items.map((it) => html`<li><span>${byId[it.p].name}</span><b>${formatQty(it.p, it.g)}</b></li>`)}</ul>
-        ${isOpen && html`<ol class="steps">${r.steps.map((s) => html`<li>${stepText(s, m.items, profile.microwaveW)}</li>`)}</ol>`}
+        <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
+          <button disabled=${m.done} onClick=${() => edit(toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
+            <span>${byId[it.p].name}</span><b>${formatQty(it.p, it.g)}</b></button></li>`)}</ul>
+        ${!m.done && (skipped.length
+          ? html`<p class="small muted">Barrato = non lo mangi, non viene contato. <button class="link" onClick=${() => setAltFor({ meal, without: skipped[0] })}>Cerca un piatto senza ${byId[skipped[0]].name.split(' – ')[0].toLowerCase()} →</button></p>`
+          : html`<p class="small muted">Tocca un ingrediente se non ce l'hai o non lo mangi.</p>`)}
+        ${isOpen && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
         <div class="actions">
-          <button class="ghost small" onClick=${() => setOpen(isOpen ? null : meal)}>${isOpen ? 'Nascondi' : 'Come si prepara'}</button>
-          <button class="ghost small" onClick=${() => updateProfile((p) => { p.plan = swapMeal(p.plan, day, meal, opts, byId); })}>🔄 Cambia</button>
+          ${m.done
+            ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Annulla "mangiato"</button>`
+            : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Mangiato</button>
+              <button class="ghost small" onClick=${() => setAltFor({ meal, without: null })}>🔄 Alternative</button>
+              <button class="ghost small" onClick=${() => setOutFor({ meal })}>🍽️ Fuori casa</button>`}
+          <button class="ghost small" onClick=${() => setOpen(isOpen ? null : meal)}>${isOpen ? 'Nascondi ricetta' : '📖 Ricetta'}</button>
         </div>
       </section>`;
     })}
+
+    <section class="card tight">
+      <h3>Extra di oggi</h3>
+      ${(current.extras ?? []).length === 0 && html`<p class="small muted">Un aperitivo, un dolce, una birra: aggiungili qui e il resto della giornata si adatta.</p>`}
+      <ul class="plist">${(current.extras ?? []).map((e) => html`<li class="wrow"><span>${e.name}<small class="muted">${r0(e.kcal)} kcal · stima</small></span>
+        <button class="ghost small" aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></li>`)}</ul>
+      <button class="ghost" onClick=${() => setOutFor({ extra: true })}>＋ Aggiungi un extra</button>
+    </section>
+    ${over > targets.kcal * 0.05 && ateOut && html`<p class="note-text small">Oggi sei sopra di circa ${r0(over)} kcal. Ogni tanto va benissimo: il risultato si vede sulla settimana. Non saltare pasti domani per compensare, riprendi semplicemente il piano.</p>`}
+
+    ${altFor && html`<${AlternativesSheet} plan=${plan} day=${day} target=${altFor} opts=${opts} byId=${byId} current=${current.meals[altFor.meal]}
+      onPick=${(meal) => { edit(setMeal(altFor.meal, meal)); setAltFor(null); setOpen(null); }} onClose=${() => setAltFor(null)} />`}
+    ${outFor && html`<${EatOutSheet} profile=${profile} updateProfile=${updateProfile} title=${outFor.extra ? 'Aggiungi un extra' : `${MEAL_LABEL[outFor.meal]} fuori casa`}
+      onPick=${(preset) => { edit(outFor.extra ? addExtra(preset) : eatOut(outFor.meal, preset)); setOutFor(null); }} onClose=${() => setOutFor(null)} />`}
 
     ${advice.length > 0 && html`<section class="card note"><h3>💊 Integratori consigliati</h3>
       ${advice.map((a) => html`<p><b>${a.title}.</b> ${a.text}</p>`)}
@@ -247,6 +287,46 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
       <p class="small muted">Media settimanale: ${r0(avg.kcal)} kcal · P ${r0(avg.protein)} g · C ${r0(avg.carbs)} g · G ${r0(avg.fat)} g · fibre ${r0(avg.fiber)} g</p>
       <button class="ghost" onClick=${() => confirm('Generare un nuovo piano per i prossimi 7 giorni?') && newPlan()}>Genera un nuovo piano</button>
     </section>`;
+}
+
+const IGNORE_AS_MISSING = new Set(['sale', 'pepe_nero', 'paprika', 'prezzemolo', 'basilico', 'limone']);
+
+function AlternativesSheet({ plan, day, target, opts, byId, current, onPick, onClose }) {
+  const [without, setWithout] = useState(target.without);
+  const list = alternatives(plan, day, target.meal, opts, byId, without).filter((a) => a.recipe.id !== current?.recipeId);
+  const chips = (current?.items ?? []).map((i) => i.p).filter((p) => !IGNORE_AS_MISSING.has(p));
+  return html`<${Sheet} title=${`Alternative per ${MEAL_LABEL[target.meal].toLowerCase()}`} onClose=${onClose}>
+    ${chips.length > 0 && html`<p class="small muted">Ti manca qualcosa? Escludi i piatti che lo usano:</p>
+      <div class="chips">${chips.map((p) => html`<button class=${without === p ? 'on' : ''} onClick=${() => setWithout(without === p ? null : p)}>senza ${byId[p].name.split(' – ')[0].toLowerCase()}</button>`)}</div>`}
+    ${list.length === 0 && html`<p class="muted">Nessuna alternativa con i tuoi prodotti${without ? ' senza questo ingrediente' : ''}.</p>`}
+    ${list.length > 0 && html`<button class="ghost" onClick=${() => onPick(list[Math.floor(Math.random() * list.length)].meal)}>🎲 Scegli tu a caso</button>`}
+    <ul class="results alt">${list.map(({ recipe, meal, fitsBudget }) => html`<li><button onClick=${() => onPick(meal)}>
+      <span><b>${recipe.name}</b><small class="muted">${r0(meal.totals.kcal)} kcal · ${r0(meal.totals.protein)} g prot. · ${METHOD[recipe.method]}${recipe.minutes ? ` · ${recipe.minutes} min` : ''}${fitsBudget ? '' : ' · porzione abbondante'}</small>
+      <small class="muted">${meal.items.filter((i) => !IGNORE_AS_MISSING.has(i.p)).map((i) => byId[i.p].name.split(' – ')[0]).join(', ')}</small></span></button></li>`)}</ul>
+  <//>`;
+}
+
+function EatOutSheet({ profile, updateProfile, title, onPick, onClose }) {
+  const [custom, setCustom] = useState({ name: '', kcal: '', protein: '' });
+  const mine = profile.customPresets ?? [];
+  const saveCustom = () => {
+    const preset = { id: 'c_' + uid(), name: custom.name.trim(), kcal: num(custom.kcal), protein: num(custom.protein) || 0, custom: true };
+    updateProfile((p) => { p.customPresets = [...(p.customPresets ?? []), preset]; });
+    onPick(preset);
+  };
+  const row = (p) => html`<li><button onClick=${() => onPick(p)}><span><b>${p.name}</b><small class="muted">${r0(p.kcal)} kcal${p.protein ? ` · ${r0(p.protein)} g prot.` : ''}${p.note ? ` · ${p.note}` : ''}</small></span></button>
+    ${p.custom && html`<button class="ghost small" aria-label="Elimina" onClick=${() => updateProfile((x) => { x.customPresets = x.customPresets.filter((c) => c.id !== p.id); })}>✕</button>`}</li>`;
+  return html`<${Sheet} title=${title} onClose=${onClose}>
+    <p class="small muted">Sono stime medie: le porzioni reali variano. Le altre portate della giornata si ricalcolano di conseguenza.</p>
+    ${mine.length > 0 && html`<h3>I tuoi</h3><ul class="results alt">${mine.map(row)}</ul>`}
+    <h3>Più comuni</h3><ul class="results alt">${PRESETS.map(row)}</ul>
+    <h3>Nuovo</h3>
+    <label>Cosa hai mangiato<input value=${custom.name} placeholder="es. Parmigiana di zia" onInput=${(e) => setCustom({ ...custom, name: e.target.value })} /></label>
+    <div class="row"><label>Calorie (kcal)<input inputmode="numeric" value=${custom.kcal} onInput=${(e) => setCustom({ ...custom, kcal: e.target.value })} /></label>
+      <label>Proteine (g, se le sai)<input inputmode="numeric" value=${custom.protein} onInput=${(e) => setCustom({ ...custom, protein: e.target.value })} /></label></div>
+    <button class="primary" disabled=${!custom.name.trim() || !(num(custom.kcal) > 0)} onClick=${saveCustom}>Aggiungi e salva per la prossima volta</button>
+    <p class="small muted">Non sai le calorie? Chiedimele in chat e le aggiungo tra quelle comuni.</p>
+  <//>`;
 }
 
 /** Fill {productId} placeholders and convert microwave times when the oven is not 800 W. */
