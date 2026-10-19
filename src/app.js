@@ -9,7 +9,7 @@ import {
 } from './lib/planner.js';
 import { PRESETS } from './lib/presets.js';
 import { RECIPES } from './lib/recipes.js';
-import { formatQty, unitsFor, addDefault } from './lib/units.js';
+import { formatQty, unitsFor, addDefault, pieceUnit } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
 import { parseFitdays } from './lib/fitdays.js';
@@ -363,12 +363,9 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
     const diff = Math.floor((new Date(today()) - new Date(plan.startDate)) / 864e5);
     return diff >= 0 && diff < 7 ? diff : 0;
   });
-  const [open, setOpen] = useState(null);
-  const [altFor, setAltFor] = useState(null);
-  const [outFor, setOutFor] = useState(null);
-  const [subFor, setSubFor] = useState(null);
-  const [addFor, setAddFor] = useState(null);
-  const [qtyFor, setQtyFor] = useState(null);
+  // One sheet at a time: { kind, meal, … }
+  const [sheet, setSheet] = useState(null);
+  const [tipSeen, setTipSeen] = useState(() => { try { return localStorage.getItem('dieta:tip') === '1'; } catch { return false; } });
   const opts = { approved, targets, fasting: profile.fasting, cooking: profile.cooking, dayTypes: profile.dayTypes, onboard: profile.onboard ?? DEFAULT_ONBOARD };
 
   const newPlan = () => updateProfile((p) => {
@@ -381,7 +378,6 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
   if (!plan) return html`<section class="card">
       <h2>Nessun piano ancora</h2>
       <p>Obiettivo giornaliero: <b>${targets.kcal} kcal</b>, ${targets.protein} g di proteine.</p>
-      <p class="muted small">Prima di generarlo puoi indicare i giorni di volo: lo farai anche dopo, giorno per giorno.</p>
       <button class="primary" onClick=${newPlan}>Genera il piano della settimana</button>
     </section>`;
 
@@ -389,121 +385,137 @@ function PlanTab({ profile, byId, targets, updateProfile }) {
   const totals = dayTotals(current);
   const avg = plan.days.map(dayTotals).reduce((a, t) => { for (const k in t) a[k] = (a[k] ?? 0) + t[k] / 7; return a; }, {});
   const advice = supplementAdvice(avg, targets);
+  const room = targets.kcal - totals.kcal;
 
   const edit = (change) => updateProfile((p) => { p.plan = editDay(p.plan, day, change, opts, byId); });
   const over = totals.kcal - targets.kcal;
   const ateOut = Object.values(current.meals).some((m) => m?.external) || (current.extras ?? []).length > 0;
-  // Day-level supplement advice only when the day was changed by hand (the weekly advice covers the plan itself).
   const changedToday = ateOut || Object.values(current.meals).some((m) => m?.skipped?.length || m?.custom);
   const suggestion = rebalanceSuggestion(current, byId, targets);
   const suggestionKey = suggestion && `${suggestion.meal}:${suggestion.missing.join(',')}:${Math.round(suggestion.deficit.protein / 5)}:${Math.round(suggestion.deficit.fiber / 3)}`;
   const showSuggestion = suggestion && !current.dismissed?.[suggestionKey];
+  const dayNotes = changedToday ? dayAdvice(totals, targets)
+    .filter((a) => !(showSuggestion && ((a.title.startsWith('Proteine') && suggestion.missing.includes('protein')) || (a.title.startsWith('Fibre') && suggestion.missing.includes('fiber'))))) : [];
 
   const setDayType = (type) => updateProfile((p) => {
     p.dayTypes[day] = type;
     p.plan = changeDayType(p.plan, day, type, opts, byId);
   });
+  const close = () => setSheet(null);
+  const hideTip = () => { setTipSeen(true); try { localStorage.setItem('dieta:tip', '1'); } catch { /* private mode */ } };
+  const stale = !plan.targetKcal || Math.abs(plan.targetKcal - targets.kcal) > 50;
 
-  return html`
-    ${targets.warnings.map((w) => html`<p class="warn">${w}</p>`)}
-    ${plan.targetKcal && Math.abs(plan.targetKcal - targets.kcal) > 50 && html`<p class="warn">Questo piano è stato creato per ${plan.targetKcal} kcal al giorno, ma ora il tuo obiettivo è ${targets.kcal} kcal. Genera un nuovo piano (in fondo alla pagina) per aggiornare le porzioni.</p>`}
-    ${!plan.targetKcal && html`<p class="warn">Questo piano è stato creato con una versione precedente dell'app. Genera un nuovo piano (in fondo alla pagina) per avere le porzioni giuste per il tuo obiettivo.</p>`}
-    <div class="days">${plan.days.map((_, i) => { const l = dayLabel(plan, i); return html`
-      <button class=${i === day ? 'on' : ''} onClick=${() => { setDay(i); setOpen(null); }}>
-        <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot">✈️</span>`}</button>`; })}</div>
-
-    <section class="card tight">
-      <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
-        <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
-      <${Totals} totals=${totals} targets=${targets} />
-      ${changedToday && dayAdvice(totals, targets)
-        // The rebalance card on the next meal already covers these.
-        .filter((a) => !(showSuggestion && ((a.title.startsWith('Proteine') && suggestion.missing.includes('protein')) || (a.title.startsWith('Fibre') && suggestion.missing.includes('fiber')))))
-        .map((a) => html`<p class="small note-inline">💊 <b>${a.title}.</b> ${a.text}</p>`)}
-    </section>
-
-    ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => {
-      const m = current.meals[meal];
-      if (!m) return html`<section class="card"><h3>${MEAL_LABEL[meal]}</h3><p class="muted">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
-      if (m.external) return html`<section class="card meal done">
-        <small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · ${r0(m.totals.protein)} g prot. · stima</small>
-        <h3>🍽️ ${m.external.name} <span class="tag">fuori casa</span></h3>
-        ${m.external.note && html`<p class="small muted">${m.external.note}</p>`}
-        <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}>↩︎ Torna al pasto del piano</button></div>
-      </section>`;
-      const r = recipeById[m.recipeId];
-      const isOpen = open === meal;
-      const skipped = m.skipped ?? [];
-      return html`<section class=${'card meal' + (m.done ? ' done' : '')}>
-        <div class="meal-head" onClick=${() => setOpen(isOpen ? null : meal)}>
-          <div><small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · ${r0(m.totals.protein)} g prot.</small>
-            <h3>${r.name}${m.leftover ? html` <span class="tag">avanzo di ieri</span>` : ''}${m.done ? html` <span class="tag ok">✓ mangiato</span>` : ''}</h3>
-            <small class="muted">${METHOD[r.method]}${r.minutes ? ` · ${r.minutes} min` : ''}${r.portable ? ' · da portare' : ''}</small></div>
-          <span class="chev">${isOpen ? '▴' : '▾'}</span>
+  return html`<div class="plan">
+    <div class="p-day">
+      ${targets.warnings.map((w) => html`<p class="warn">${w}</p>`)}
+      ${stale && html`<p class="warn small">Il piano è stato creato per ${plan.targetKcal ?? 'un altro'} kcal, ora il tuo obiettivo è ${targets.kcal}: <button class="link" onClick=${() => confirm('Generare un nuovo piano per i prossimi 7 giorni?') && newPlan()}>rigeneralo</button>.</p>`}
+      <div class="days">${plan.days.map((_, i) => { const l = dayLabel(plan, i); return html`
+        <button class=${i === day ? 'on' : ''} onClick=${() => { setDay(i); close(); }}>
+          <small>${l.short}</small><b>${l.date}</b>${plan.days[i].type !== 'casa' && html`<span class="dot">✈️</span>`}</button>`; })}</div>
+      <section class="card tight">
+        <div class="segmented">${Object.entries(DAY_TYPES).filter(([k]) => k !== 'pernotto' || profile.overnight || current.type === k).map(([k, t]) => html`
+          <button class=${current.type === k ? 'on' : ''} onClick=${() => current.type !== k && setDayType(k)}>${t.label}</button>`)}</div>
+        <${Totals} totals=${totals} targets=${targets} />
+        ${dayNotes.map((a) => html`<p class="small note-inline">💊 <b>${a.title}.</b> ${a.text}</p>`)}
+        <div class="extras">
+          ${(current.extras ?? []).map((e) => html`<span class="chip">${e.name} · ${r0(e.kcal)} kcal <button aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></span>`)}
+          <button class="ghost small" onClick=${() => setSheet({ kind: 'out', extra: true })}>＋ Extra</button>
         </div>
-        ${showSuggestion && suggestion.meal === meal && html`<${RebalanceCard} s=${suggestion} m=${m} meal=${meal} plan=${plan} day=${day} opts=${opts} byId=${byId}
-          edit=${edit} onDismiss=${() => edit(dismissSuggestion(suggestionKey))} />`}
-        ${m.rebalanced && html`<p class="small muted">Riequilibrata per i macro mancanti. <button class="link" onClick=${() => edit(resetMeal(meal))}>↩︎ Torna alla versione del piano</button></p>`}
-        <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
-          <button class="iname" disabled=${m.done} onClick=${() => edit(it.replaces ? revertSubstitute(meal, it.p, byId) : it.added || it.addedG ? removeAdded(meal, it.p, byId) : toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
-            <span>${byId[it.p].name}${it.replaces ? html`<small class="muted">al posto di ${short(byId, it.replaces).toLowerCase()} · tocca per annullare</small>` : ''}${it.added ? html`<small class="muted">aggiunto da te · tocca per toglierlo</small>` : ''}${it.addedG ? html`<small class="muted">+${formatQty(it.p, it.addedG)} aggiunti · tocca per toglierli</small>` : ''}</span></button>
-          <button class="iqty" disabled=${m.done || skipped.includes(it.p)} onClick=${() => setQtyFor({ meal, p: it.p })} aria-label=${`Cambia quantità di ${byId[it.p].name}`}>
-            <b>${formatQty(it.p, it.g)}</b>
-            ${it.boostedFrom != null && it.boostedFrom !== it.g ? html`<small class="muted">era ${formatQty(it.p, it.boostedFrom)}</small>` : ''}
-            ${it.editedFrom != null ? html`<small class="muted">nel piano ${formatQty(it.p, it.editedFrom)}</small>` : ''}</button></li>`)}</ul>
-        ${!m.done && (skipped.length
-          ? html`<${MissingPanel} m=${m} meal=${meal} byId=${byId} approved=${approved} edit=${edit}
-              onSubstitute=${(p) => setSubFor({ meal, p })} onAlternatives=${() => setAltFor({ meal, without: skipped[0] })} />`
-          : m.boosted
-            ? html`<p class="small muted">Porzioni aumentate per compensare. <button class="link" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button></p>`
-            : m.undoneBoost
-            ? html`<p class="small muted">Aumento annullato. <button class="link" onClick=${() => edit(redoCompensate(meal, byId))}>↻ Ripristina l'aumento</button></p>`
-            : html`<p class="small muted">Tocca il nome di un ingrediente per toglierlo, la quantità per cambiarla.</p>`)}
-        ${isOpen && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
-        <div class="actions">
-          ${m.done
-            ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Non l'ho mangiato</button>`
-            : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Segna come mangiato</button>
-              <button class="ghost small" onClick=${() => setAltFor({ meal, without: null })}>🔄 Alternative</button>
-              <button class="ghost small" onClick=${() => setAddFor(meal)}>＋ Ingrediente</button>
-              <button class="ghost small" onClick=${() => setOutFor({ meal })}>🍽️ Fuori casa</button>`}
-          <button class="ghost small" onClick=${() => setOpen(isOpen ? null : meal)}>${isOpen ? 'Nascondi ricetta' : '📖 Ricetta'}</button>
-        </div>
-      </section>`;
-    })}
+        ${over > targets.kcal * 0.05 && ateOut && html`<p class="small muted">Oggi sei sopra di circa ${r0(over)} kcal: ogni tanto va bene, conta la settimana. Domani riprendi il piano senza saltare pasti.</p>`}
+      </section>
+    </div>
 
-    <section class="card tight">
-      <h3>Extra di oggi</h3>
-      ${(current.extras ?? []).length === 0 && html`<p class="small muted">Un aperitivo, un dolce, una birra: aggiungili qui e il resto della giornata si adatta.</p>`}
-      <ul class="plist">${(current.extras ?? []).map((e) => html`<li class="wrow"><span>${e.name}<small class="muted">${r0(e.kcal)} kcal · stima</small></span>
-        <button class="ghost small" aria-label="Rimuovi" onClick=${() => edit(removeExtra(e.uid))}>✕</button></li>`)}</ul>
-      <button class="ghost" onClick=${() => setOutFor({ extra: true })}>＋ Aggiungi un extra</button>
-    </section>
-    ${over > targets.kcal * 0.05 && ateOut && html`<p class="note-text small">Oggi sei sopra di circa ${r0(over)} kcal. Ogni tanto va benissimo: il risultato si vede sulla settimana. Non saltare pasti domani per compensare, riprendi semplicemente il piano.</p>`}
+    <div class="p-meals">
+      ${!tipSeen && html`<p class="tip small">👆 Tocca il <b>nome</b> di un ingrediente per toglierlo, la <b>quantità</b> per cambiarla. Il resto della giornata si ricalcola da solo. <button class="link" onClick=${hideTip}>Ok, capito</button></p>`}
+      ${MEAL_ORDER.filter((m) => m in current.meals).map((meal) => html`<${MealCard} key=${meal} meal=${meal} m=${current.meals[meal]} byId=${byId} approved=${approved}
+        profile=${profile} edit=${edit} open=${(kind, extra = {}) => setSheet({ kind, meal, ...extra })}
+        suggestion=${showSuggestion && suggestion.meal === meal ? suggestion : null}
+        rebalance=${showSuggestion && suggestion.meal === meal && html`<${RebalanceCard} s=${suggestion} m=${current.meals[meal]} meal=${meal} plan=${plan} day=${day} opts=${opts} byId=${byId}
+          edit=${edit} onDismiss=${() => edit(dismissSuggestion(suggestionKey))} />`} />`)}
+    </div>
 
-    ${qtyFor && current.meals[qtyFor.meal] && html`<${QuantitySheet} m=${current.meals[qtyFor.meal]} p=${qtyFor.p} byId=${byId} room=${targets.kcal - totals.kcal}
-      onSet=${(g) => { edit(setQuantity(qtyFor.meal, qtyFor.p, g, byId)); setQtyFor(null); }} onClose=${() => setQtyFor(null)} />`}
-    ${addFor && html`<${AddIngredientSheet} meal=${addFor} m=${current.meals[addFor]} approved=${approved} byId=${byId} room=${targets.kcal - totals.kcal}
-      onAdd=${(p, g) => { edit(addIngredient(addFor, p, g, byId)); setAddFor(null); }} onClose=${() => setAddFor(null)} />`}
-    ${subFor && html`<${SubstituteSheet} m=${current.meals[subFor.meal]} meal=${subFor.meal} p=${subFor.p} approved=${approved} byId=${byId}
-      onPick=${(s) => { edit(substitute(subFor.meal, subFor.p, s.product.id, s.g, byId)); setSubFor(null); }}
-      onCompensate=${() => { edit(compensate(subFor.meal, byId)); setSubFor(null); }} onClose=${() => setSubFor(null)} />`}
-    ${altFor && html`<${AlternativesSheet} plan=${plan} day=${day} target=${altFor} opts=${opts} byId=${byId} current=${current.meals[altFor.meal]}
-      onPick=${(meal) => { edit(setMeal(altFor.meal, meal)); setAltFor(null); setOpen(null); }} onClose=${() => setAltFor(null)} />`}
-    ${outFor && html`<${EatOutSheet} profile=${profile} updateProfile=${updateProfile} title=${outFor.extra ? 'Aggiungi un extra' : `${MEAL_LABEL[outFor.meal]} fuori casa`}
-      onPick=${(preset) => { edit(outFor.extra ? addExtra(preset) : eatOut(outFor.meal, preset)); setOutFor(null); }} onClose=${() => setOutFor(null)} />`}
+    <div class="p-week">
+      ${advice.length > 0 && html`<details class="card note"><summary><b>💊 Integratori consigliati per la settimana</b></summary>
+        ${advice.map((a) => html`<p class="small"><b>${a.title}.</b> ${a.text}</p>`)}
+        <p class="muted small">Suggerimenti generali: se hai condizioni mediche, chiedi prima al medico o al farmacista.</p></details>`}
+      <section class="card tight">
+        <p class="small muted">Media della settimana: ${r0(avg.kcal)} kcal</p><${MacroDots} t=${avg} />
+        <button class="ghost" onClick=${() => confirm('Generare un nuovo piano per i prossimi 7 giorni?') && newPlan()}>Genera un nuovo piano</button>
+      </section>
+    </div>
 
-    ${advice.length > 0 && html`<section class="card note"><h3>💊 Integratori consigliati</h3>
-      ${advice.map((a) => html`<p><b>${a.title}.</b> ${a.text}</p>`)}
-      <p class="muted small">Sono suggerimenti generali: se hai condizioni mediche, chiedi prima al medico o al farmacista.</p></section>`}
-
-    <section class="card">
-      <p class="small muted">Media settimanale: ${r0(avg.kcal)} kcal · P ${r0(avg.protein)} g · C ${r0(avg.carbs)} g · G ${r0(avg.fat)} g · fibre ${r0(avg.fiber)} g</p>
-      <button class="ghost" onClick=${() => confirm('Generare un nuovo piano per i prossimi 7 giorni?') && newPlan()}>Genera un nuovo piano</button>
-    </section>`;
+    ${sheet?.kind === 'menu' && html`<${MealMenu} meal=${sheet.meal} m=${current.meals[sheet.meal]} onClose=${close}
+      onPick=${(kind) => setSheet({ kind, meal: sheet.meal })} onReset=${() => { edit(resetMeal(sheet.meal)); close(); }} />`}
+    ${sheet?.kind === 'qty' && current.meals[sheet.meal] && html`<${QuantitySheet} m=${current.meals[sheet.meal]} p=${sheet.p} byId=${byId} room=${room}
+      onSet=${(g) => { edit(setQuantity(sheet.meal, sheet.p, g, byId)); close(); }} onClose=${close} />`}
+    ${sheet?.kind === 'add' && html`<${AddIngredientSheet} meal=${sheet.meal} m=${current.meals[sheet.meal]} approved=${approved} byId=${byId} room=${room}
+      onAdd=${(p, g) => { edit(addIngredient(sheet.meal, p, g, byId)); close(); }} onClose=${close} />`}
+    ${sheet?.kind === 'sub' && html`<${SubstituteSheet} m=${current.meals[sheet.meal]} meal=${sheet.meal} p=${sheet.p} approved=${approved} byId=${byId}
+      onPick=${(x) => { edit(substitute(sheet.meal, sheet.p, x.product.id, x.g, byId)); close(); }}
+      onCompensate=${() => { edit(compensate(sheet.meal, byId)); close(); }}
+      onAlternatives=${() => setSheet({ kind: 'alt', meal: sheet.meal, without: sheet.p })} onClose=${close} />`}
+    ${sheet?.kind === 'alt' && html`<${AlternativesSheet} plan=${plan} day=${day} target=${{ meal: sheet.meal, without: sheet.without ?? null }} opts=${opts} byId=${byId} current=${current.meals[sheet.meal]}
+      onPick=${(m) => { edit(setMeal(sheet.meal, m)); close(); }} onClose=${close} />`}
+    ${sheet?.kind === 'out' && html`<${EatOutSheet} profile=${profile} updateProfile=${updateProfile} title=${sheet.extra ? 'Aggiungi un extra' : `${MEAL_LABEL[sheet.meal]} fuori casa`}
+      onPick=${(preset) => { edit(sheet.extra ? addExtra(preset) : eatOut(sheet.meal, preset)); close(); }} onClose=${close} />`}
+  </div>`;
 }
 
-// Seasonings are not offered as "keep / remove" choices: almost every dish has them.
+/** One meal: name and macros, ingredients (tap name = remove, tap amount = change), two main actions and a menu. */
+function MealCard({ meal, m, byId, approved, profile, edit, open, rebalance }) {
+  const [showRecipe, setShowRecipe] = useState(false);
+  if (!m) return html`<section class="card meal"><h3>${MEAL_LABEL[meal]}</h3><p class="muted small">Nessuna ricetta possibile con i tuoi prodotti per questo pasto.</p></section>`;
+  if (m.external) return html`<section class="card meal done">
+    <div class="meal-top"><small class="muted">${MEAL_LABEL[meal]} · ${r0(m.totals.kcal)} kcal · stima</small><span class="tag">fuori casa</span></div>
+    <h3>🍽️ ${m.external.name}</h3>
+    <${MacroDots} t=${m.totals} />
+    <div class="actions"><button class="ghost small" onClick=${() => edit(undoEatOut(meal))}>↩︎ Torna al pasto del piano</button></div>
+  </section>`;
+  const r = recipeById[m.recipeId];
+  const skipped = m.skipped ?? [];
+  const missing = skipped.filter((p) => productRole(byId[p]) !== 'other');
+  const modified = skipped.length || m.custom || m.boosted;
+  return html`<section class=${'card meal' + (m.done ? ' done' : '')}>
+    <div class="meal-top">
+      <small class="muted">${MEAL_LABEL[meal]} · <b>${r0(m.totals.kcal)} kcal</b></small>
+      ${m.done ? html`<span class="tag ok">✓ mangiato</span>` : m.leftover ? html`<span class="tag">avanzo di ieri</span>` : modified ? html`<span class="tag">modificato</span>` : ''}
+    </div>
+    <h3>${r.name}</h3>
+    <div class="meal-meta"><${MacroDots} t=${m.totals} /><small class="muted">${METHOD[r.method]}${r.minutes ? ` · ${r.minutes}′` : ''}${r.portable ? ' · da portare' : ''}</small></div>
+    ${rebalance}
+    <ul class="items">${m.items.map((it) => html`<li class=${skipped.includes(it.p) ? 'off' : ''}>
+      <button class="iname" disabled=${m.done} onClick=${() => edit(it.replaces ? revertSubstitute(meal, it.p, byId) : it.added || it.addedG ? removeAdded(meal, it.p, byId) : toggleSkip(meal, it.p, byId))} aria-pressed=${skipped.includes(it.p)}>
+        <span>${byId[it.p].name}${it.replaces ? html`<small class="muted">al posto di ${short(byId, it.replaces).toLowerCase()} · tocca per annullare</small>` : ''}${it.added ? html`<small class="muted">aggiunto · tocca per togliere</small>` : ''}${it.addedG ? html`<small class="muted">+${formatQty(it.p, it.addedG)} aggiunti · tocca per togliere</small>` : ''}</span></button>
+      <button class="iqty" disabled=${m.done || skipped.includes(it.p)} onClick=${() => open('qty', { p: it.p })} aria-label=${`Cambia quantità di ${byId[it.p].name}`}>
+        <b>${formatQty(it.p, it.g)}</b>
+        ${it.boostedFrom != null && it.boostedFrom !== it.g ? html`<small class="muted">era ${formatQty(it.p, it.boostedFrom)}</small>` : ''}
+        ${it.editedFrom != null ? html`<small class="muted">piano ${formatQty(it.p, it.editedFrom)}</small>` : ''}</button></li>`)}</ul>
+    ${!m.done && missing.length > 0 && html`<p class="missing small">Senza ${missing.map((x) => short(byId, x).toLowerCase()).join(', ')}: ${r0(nutrientsFull(m, byId).kcal)} → ${r0(m.totals.kcal)} kcal.${' '}<button class="link" onClick=${() => open('sub', { p: missing[0] })}>Cosa faccio senza?</button></p>`}
+    ${!m.done && m.boosted && html`<p class="small muted">Porzioni aumentate per compensare. <button class="link" onClick=${() => edit(undoCompensate(meal, byId))}>Annulla l'aumento</button></p>`}
+    ${!m.done && !m.boosted && m.undoneBoost && html`<p class="small muted">Aumento annullato. <button class="link" onClick=${() => edit(redoCompensate(meal, byId))}>Ripristina</button></p>`}
+    ${showRecipe && html`<ol class="steps">${r.steps.map((st) => html`<li>${stepText(st, m.items.filter((i) => !skipped.includes(i.p)), profile.microwaveW)}</li>`)}</ol>`}
+    <div class="actions">
+      ${m.done
+        ? html`<button class="ghost small" onClick=${() => edit(setDone(meal, false))}>↩︎ Non l'ho mangiato</button>`
+        : html`<button class="ghost small strong" onClick=${() => edit(setDone(meal, true))}>✓ Segna come mangiato</button>
+          <button class="ghost small" onClick=${() => open('alt')}>🔄 Cambia</button>`}
+      <button class="ghost small" onClick=${() => setShowRecipe(!showRecipe)}>${showRecipe ? 'Chiudi ricetta' : '📖 Ricetta'}</button>
+      ${!m.done && html`<button class="ghost small" aria-label="Altre azioni" onClick=${() => open('menu')}>⋯</button>`}
+    </div>
+  </section>`;
+}
+
+function MealMenu({ meal, m, onPick, onReset, onClose }) {
+  const modified = (m.skipped ?? []).length || m.custom || m.boosted;
+  return html`<${Sheet} title=${MEAL_LABEL[meal]} onClose=${onClose}>
+    <ul class="results alt menu">
+      <li><button onClick=${() => onPick('add')}><span><b>＋ Aggiungi un ingrediente</b><small class="muted">Un prodotto della tua lista, nella quantità che vuoi</small></span></button></li>
+      <li><button onClick=${() => onPick('out')}><span><b>🍽️ Mangiato fuori casa</b><small class="muted">Lasagna della mamma, sushi, pizza… con una stima delle calorie</small></span></button></li>
+      ${modified && html`<li><button onClick=${() => confirm('Tornare al pasto come nel piano?') && onReset()}><span><b>↩︎ Annulla tutte le modifiche</b><small class="muted">Ingredienti tolti, aggiunti, sostituiti e quantità tornano come nel piano</small></span></button></li>`}
+    </ul>
+  <//>`;
+}
+
 const IGNORE_AS_MISSING = new Set(['sale', 'pepe_nero', 'paprika', 'prezzemolo', 'basilico', 'limone', 'olio_evo']);
 const short = (byId, p) => byId[p].name.split(' – ')[0];
 const nutrientsFull = (m, byId) => nutrientsOf(m.items, byId);
@@ -551,23 +563,50 @@ function MacroDots({ t, delta = false }) {
 
 /** Optional suggestion on the next meal after a meal that lost protein, carbs, fat or fibre. */
 function RebalanceCard({ s, m, meal, plan, day, opts, byId, edit, onDismiss }) {
-  const from = s.from.map((x) => MEAL_LABEL[x].replace(' ✈️', '').toLowerCase()).join(' e a ');
-  const mp = s.missing.includes('protein') ? moreProtein(m, s.gap.protein, byId) : null;
-  const alts = s.missing.map((k) => [k, richerAlternative(plan, day, meal, opts, byId, k)]).filter(([, a]) => a);
+  const [openCard, setOpenCard] = useState(false);
+  const from = s.from.map((x) => MEAL_LABEL[x].replace(' ✈️', '').toLowerCase()).join(' e ');
+  const summary = s.missing.map((k) => `${r0(s.deficit[k])} g di ${MACRO_NAME[k]}`).join(', ');
+  const mp = openCard && s.missing.includes('protein') ? moreProtein(m, s.gap.protein, byId) : null;
+  const alts = openCard ? s.missing.map((k) => [k, richerAlternative(plan, day, meal, opts, byId, k)]).filter(([, a]) => a) : [];
   const seen = new Set();
   return html`<div class="rebalance">
-    <p class="small"><b>⚖️ Riequilibrio suggerito</b> <span class="muted">(facoltativo)</span></p>
-    ${s.missing.map((k) => html`<p class="small">A ${from} hai tolto circa <b>${r0(s.deficit[k])} g di ${MACRO_NAME[k]}</b>${k === 'protein' || k === 'fiber' ? `; nel resto della giornata ne mancano ancora circa ${r0(s.gap[k])} g.` : '.'}
-      ${k === 'carbs' || k === 'fat' ? ' Le calorie sono già state spostate sugli altri pasti: recuperarli non è necessario per dimagrire.' : ''}</p>`)}
-    <div class="actions">
-      ${mp && html`<button class="ghost small strong" onClick=${() => edit(setMeal(meal, { ...mp, custom: true, rebalanced: true }))}>💪 Stesso piatto, più proteine (+${r0(mp.gain)} g)</button>`}
-      ${alts.filter(([, a]) => !seen.has(a.recipe.id) && seen.add(a.recipe.id)).map(([k, a]) => html`<button class="ghost small" onClick=${() => edit(setMeal(meal, a.meal))}>
-        🔄 ${a.recipe.name} (${r0(a.meal.totals[k])} g ${MACRO_NAME[k]})</button>`)}
-      <button class="ghost small" onClick=${onDismiss}>Ignora</button>
+    <div class="rb-head">
+      <button class="link" onClick=${() => setOpenCard(!openCard)}>⚖️ Da ${from} mancano ${summary} · ${openCard ? 'chiudi' : 'vedi proposte'}</button>
+      <button class="x" aria-label="Ignora il suggerimento" onClick=${onDismiss}>✕</button>
     </div>
-    ${!mp && !alts.length && html`<p class="small muted">Con i tuoi prodotti questo pasto non può dare di più senza superare le calorie.</p>`}
-    ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted">💊 Se non riesci a recuperarle col cibo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine. Facoltativo, e non serve se succede solo ogni tanto.</p>`}
-    ${s.missing.includes('fiber') && html`<p class="small muted">💊 Per le fibre: più finocchio o insalata in questo pasto, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}
+    ${openCard && html`
+      ${s.missing.map((k) => html`<p class="small">${k === 'protein' || k === 'fiber'
+        ? `Nel resto della giornata ne mancano ancora circa ${r0(s.gap[k])} g.`
+        : `${MACRO_NAME[k][0].toUpperCase() + MACRO_NAME[k].slice(1)}: le calorie sono già passate agli altri pasti, recuperarli non serve per dimagrire.`}</p>`)}
+      <div class="actions">
+        ${mp && html`<button class="ghost small strong" onClick=${() => edit(setMeal(meal, { ...mp, custom: true, rebalanced: true }))}>💪 Stesso piatto, più proteine (+${r0(mp.gain)} g)</button>`}
+        ${alts.filter(([, a]) => !seen.has(a.recipe.id) && seen.add(a.recipe.id)).map(([k, a]) => html`<button class="ghost small" onClick=${() => edit(setMeal(meal, a.meal))}>
+          🔄 ${a.recipe.name} (${r0(a.meal.totals[k])} g ${MACRO_NAME[k]})</button>`)}
+      </div>
+      ${!mp && !alts.length && html`<p class="small muted">Con i tuoi prodotti questo pasto non può dare di più senza superare le calorie.</p>`}
+      ${s.missing.includes('protein') && s.gap.protein >= 15 && html`<p class="small muted">💊 Facoltativo: una dose di proteine whey (circa 25 g di polvere) dà circa 20 g di proteine.</p>`}
+      ${s.missing.includes('fiber') && html`<p class="small muted">💊 Per le fibre: più finocchio o insalata, oppure 5 g di psillio in un bicchiere grande d'acqua.</p>`}`}
+  </div>`;
+}
+
+/** − / + selector: in pieces for countable products (4 würstel), in grams for the rest (pasta). */
+function QtyStepper({ p, g, setG, step }) {
+  const piece = pieceUnit(p);
+  if (piece) {
+    const n = Math.round((g / piece.w) * 2) / 2;
+    const setN = (x) => setG(Math.max(0.5, x) * piece.w);
+    return html`<div class="stepper">
+      <button class="ghost" onClick=${() => setN(n - 1 >= 1 ? n - 1 : 0.5)} aria-label="Uno in meno">−</button>
+      <input type="number" inputmode="decimal" step="0.5" value=${n} onInput=${(e) => setN(num(e.target.value) || 0.5)} />
+      <span>${n === 1 || n === 0.5 ? piece.one : piece.many}</span>
+      <button class="ghost" onClick=${() => setN(n < 1 ? 1 : n + 1)} aria-label="Uno in più">+</button>
+    </div>`;
+  }
+  return html`<div class="stepper">
+    <button class="ghost" onClick=${() => setG(Math.max(step, g - step))} aria-label="Meno">−</button>
+    <input type="number" inputmode="decimal" value=${g} onInput=${(e) => setG(Math.max(0, num(e.target.value) || 0))} />
+    <span>${unitsFor(p).ml ? 'ml' : 'g'}</span>
+    <button class="ghost" onClick=${() => setG(g + step)} aria-label="Più">+</button>
   </div>`;
 }
 
@@ -582,12 +621,7 @@ function QuantitySheet({ m, p, byId, room, onSet, onClose }) {
   const delta = { kcal: per('energyKcal', g) - per('energyKcal', item.g), protein: per('protein', g) - per('protein', item.g), carbs: per('carbs', g) - per('carbs', item.g), fat: per('fat', g) - per('fat', item.g), fiber: per('fiber', g) - per('fiber', item.g) };
   return html`<${Sheet} title=${byId[p].name} onClose=${onClose}>
     <p class="small muted">Quanto ne mangi in questo pasto? Il resto della giornata si riadatta.</p>
-    <div class="stepper">
-      <button class="ghost" onClick=${() => setG(Math.max(step, g - step))} aria-label="Meno">−</button>
-      <input type="number" inputmode="decimal" value=${g} onInput=${(e) => setG(Math.max(0, num(e.target.value) || 0))} />
-      <span>g</span>
-      <button class="ghost" onClick=${() => setG(g + step)} aria-label="Più">+</button>
-    </div>
+    <${QtyStepper} p=${p} g=${g} setG=${setG} step=${step} />
     <p class="small"><b>${formatQty(p, g)}</b> · ${r0(per('energyKcal', g))} kcal ${g !== item.g ? html`<span class="muted">(${delta.kcal > 0 ? '+' : ''}${r0(delta.kcal)} kcal rispetto a ora)</span>` : ''}</p>
     ${g !== item.g && html`<${MacroDots} t=${delta} delta=${true} />`}
     <${MacroLegend} />
@@ -612,12 +646,7 @@ function AddIngredientSheet({ meal, m, approved, byId, room, onAdd, onClose }) {
     <p class="small muted">Solo prodotti della tua lista. ${room > 0 ? `Oggi hai ancora circa ${r0(room)} kcal disponibili.` : `Oggi sei già all'obiettivo: ogni aggiunta va oltre.`}</p>
     ${pick ? html`
       <p><b>${byId[pick].name}</b>${m.items.some((i) => i.p === pick) ? html`<small class="muted">È già nel piatto: verranno aggiunti questi grammi.</small>` : ''}</p>
-      <div class="stepper">
-        <button class="ghost" onClick=${() => setG(Math.max(step, g - step))} aria-label="Meno">−</button>
-        <input type="number" inputmode="decimal" value=${g} onInput=${(e) => setG(Math.max(0, num(e.target.value) || 0))} />
-        <span>g</span>
-        <button class="ghost" onClick=${() => setG(g + step)} aria-label="Più">+</button>
-      </div>
+      <${QtyStepper} p=${pick} g=${g} setG=${setG} step=${step} />
       <p class="small">${formatQty(pick, g)} · <b>${r0(t.kcal)} kcal</b></p>
       <${MacroDots} t=${t} />
       <${MacroLegend} />
@@ -630,27 +659,7 @@ function AddIngredientSheet({ meal, m, approved, byId, room, onAdd, onClose }) {
   <//>`;
 }
 
-/** What to do when an ingredient is missing: swap it, make up with the rest of the dish, or change dish. */
-function MissingPanel({ m, meal, byId, approved, edit, onSubstitute, onAlternatives }) {
-  const missing = (m.skipped ?? []).filter((p) => productRole(byId[p]) !== 'other');
-  const comp = m.boosted ? null : compensation(m, byId);
-  const p = missing[0];
-  const lostProtein = comp ? comp.before.protein - comp.after.protein : 0;
-  return html`<div class="missing">
-    <p class="small"><b>Barrato = non lo mangi, non viene contato.</b> Il piatto intero era ${r0(nutrientsFull(m, byId).kcal)} kcal, così è ${r0(m.totals.kcal)} kcal.</p>
-    <p class="small muted">Se lasci così, le calorie che mancano passano agli altri pasti di oggi non ancora mangiati.${p ? ` Oppure, senza ${short(byId, p).toLowerCase()}:` : ''}</p>
-    <div class="actions">
-      ${missing.map((x) => html`<button class="ghost small strong" onClick=${() => onSubstitute(x)}>🔁 Cosa faccio senza ${short(byId, x).toLowerCase()}?</button>`)}
-      ${comp && !m.undoneBoost && html`<button class="ghost small" onClick=${() => edit(compensate(meal, byId))}>⬆️ Aumenta il resto fino a ~${r0(comp.after.kcal)} kcal${comp.capped ? ' (porzione massima)' : ''}</button>`}
-      ${m.boosted && html`<button class="ghost small" onClick=${() => edit(undoCompensate(meal, byId))}>↩︎ Annulla l'aumento</button>`}
-      ${!m.boosted && m.undoneBoost && html`<button class="ghost small strong" onClick=${() => edit(redoCompensate(meal, byId))}>↻ Ripristina l'aumento</button>`}
-      <button class="ghost small" onClick=${onAlternatives}>🔄 Cambia piatto</button>
-    </div>
-    ${comp && lostProtein >= 10 && html`<p class="small muted">Con "Aumenta il resto" le calorie tornano, ma le proteine scendono da ${r0(comp.before.protein)} a ${r0(comp.after.protein)} g e il piatto sazia meno: meglio sostituire con un'altra proteina, se ce l'hai.</p>`}
-  </div>`;
-}
-
-function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onClose }) {
+function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onAlternatives, onClose }) {
   const { role, list } = substitutes(m, p, approved, byId, meal);
   const comp = compensation(m, byId);
   const how = { protein: 'con le stesse proteine', carb: 'con le stesse calorie', fat: 'con le stesse calorie', veg: 'con lo stesso peso' }[role];
@@ -659,6 +668,7 @@ function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onC
     <${MacroLegend} />
     <p class="small muted">Piatto intero: ${r0((comp?.before ?? nutrientsFull(m, byId)).kcal)} kcal <${MacroDots} t=${comp?.before ?? nutrientsFull(m, byId)} />
       Senza ${short(byId, p).toLowerCase()}: ${r0(m.totals.kcal)} kcal <${MacroDots} t=${m.totals} /></p>
+    <p class="small muted">Se lasci così, le calorie che mancano passano agli altri pasti di oggi non ancora mangiati. Oppure:</p>
     <h3>Mettici qualcos'altro</h3>
     <p class="small muted">Prodotti della tua lista che fanno la stessa funzione, nella quantità ${how}. L'abbinamento lo giudichi tu.</p>
     ${list.length === 0 && html`<p class="muted small">Nella tua lista non c'è niente di simile per questo pasto.</p>`}
@@ -672,6 +682,8 @@ function SubstituteSheet({ m, meal, p, approved, byId, onPick, onCompensate, onC
         ${comp.capped && html`<small class="muted">Non arriva alle calorie del piatto intero: oltre questa porzione non conviene. Le calorie che mancano restano deficit in più, va bene.</small>`}
         ${comp.before.protein - comp.after.protein >= 10 && html`<small class="warn-text">Proteine ${r0(comp.before.protein)} → ${r0(comp.after.protein)} g: sazia meno, meglio non farlo spesso.</small>`}
       </span></button></li></ul>`}
+    <h3>Oppure cambia piatto</h3>
+    <button class="ghost" onClick=${onAlternatives}>🔄 Piatti senza ${short(byId, p).toLowerCase()}</button>
   <//>`;
 }
 

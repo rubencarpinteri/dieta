@@ -61,3 +61,14 @@ export function formatQty(id, grams) {
   }
   return `${Math.round(g)} g`;
 }
+
+/**
+ * Countable products (würstel, eggs, slices, biscuits, pots…) are adjusted by pieces, not grams.
+ * Returns { one, many, w } or null when the product is weighed (pasta, rice, oil…).
+ */
+export function pieceUnit(id) {
+  const u = unitsFor(id);
+  if (!u.unit || u.fine || u.ml || u.unit[2] < 5) return null;
+  const [one, many, w] = u.unit;
+  return { one, many, w };
+}
