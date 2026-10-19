@@ -21,10 +21,21 @@ export function bmr({ sex, age, heightCm, weightKg }) {
   return 10 * weightKg + 6.25 * heightCm - 5 * age + (sex === 'M' ? 5 : -161);
 }
 
+/** Latest body-fat % from the impedance scale, if any. */
+export function latestFatPct(weights = []) {
+  const w = [...weights].filter((x) => x.fatPct != null).sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  return w?.fatPct ?? null;
+}
+
 /** Returns targets plus warnings in Italian. */
 export function dailyTargets(profile) {
   const warnings = [];
-  const base = bmr(profile);
+  // With a measured body-fat % we use Katch-McArdle (based on lean mass): more accurate than
+  // Mifflin-St Jeor for people with more fat or more muscle than average.
+  const fatPct = latestFatPct(profile.weights);
+  const leanKg = fatPct != null ? profile.weightKg * (1 - fatPct / 100) : null;
+  const base = leanKg != null ? 370 + 21.6 * leanKg : bmr(profile);
+  const bmrMethod = leanKg != null ? `Katch-McArdle, dalla massa magra (${Math.round(leanKg * 10) / 10} kg)` : 'Mifflin-St Jeor';
   const tdee = base * ACTIVITY[profile.activity].factor;
   const bmi = profile.weightKg / (profile.heightCm / 100) ** 2;
 
@@ -55,7 +66,7 @@ export function dailyTargets(profile) {
   const fiber = Math.max(25, Math.round((14 * kcal) / 1000));
 
   const weeklyLoss = ((tdee - kcal) * 7) / KCAL_PER_KG_FAT;
-  return { bmr: Math.round(base), tdee: Math.round(tdee), kcal, protein, fat, carbs, fiber, bmi: Math.round(bmi * 10) / 10, weeklyLoss, warnings };
+  return { bmrMethod, bmr: Math.round(base), tdee: Math.round(tdee), kcal, protein, fat, carbs, fiber, bmi: Math.round(bmi * 10) / 10, weeklyLoss, warnings };
 }
 
 export function ageFrom(birthYear) {

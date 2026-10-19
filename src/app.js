@@ -437,9 +437,12 @@ function WeightTab({ profile, updateProfile }) {
   };
   const first = weights[0], last = weights.at(-1);
   const trend = weeklyTrend(weights);
-  const metrics = [['kg', 'Peso', 'kg'], ...BODY.filter(([k]) => weights.filter((w) => w[k] != null).length >= 2)];
+  const withFat = weights.filter((w) => w.fatPct != null);
+  const metrics = [['kg', 'Peso', 'kg'], ...(withFat.length >= 2 ? [['fatKg', 'Massa grassa', 'kg']] : []), ...BODY.filter(([k]) => weights.filter((w) => w[k] != null).length >= 2)];
   const [, metricLabel, metricUnit] = metrics.find(([k]) => k === metric) ?? metrics[0];
-  const series = weights.filter((w) => w[metric] != null).map((w) => ({ date: w.date, kg: w[metric] }));
+  const valueOf = (w) => (metric === 'fatKg' ? (w.fatPct != null ? Math.round(w.kg * w.fatPct) / 100 : null) : w[metric]);
+  const series = weights.filter((w) => valueOf(w) != null).map((w) => ({ date: w.date, kg: valueOf(w) }));
+  const fatFirst = withFat[0], fatLast = withFat.at(-1);
   return html`
     <section class="card">
       <div class="row">
@@ -459,6 +462,7 @@ function WeightTab({ profile, updateProfile }) {
         <div><small class="muted">Variazione</small><b>${(last.kg - first.kg > 0 ? '+' : '') + dec(last.kg - first.kg)} kg</b></div>
         <div><small class="muted">Obiettivo</small><b>${profile.goalKg} kg</b></div>
       </div>
+      ${withFat.length >= 2 && html`<p class="small">Massa grassa: da ${dec(fatFirst.kg * fatFirst.fatPct / 100)} a ${dec(fatLast.kg * fatLast.fatPct / 100)} kg (<b>${dec((fatLast.kg * fatLast.fatPct - fatFirst.kg * fatFirst.fatPct) / 100)} kg</b>). È il numero che conta davvero: il peso oscilla con l'acqua, il grasso no.</p>`}
       ${metrics.length > 1 && html`<div class="segmented">${metrics.map(([k, l]) => html`<button class=${metric === k ? 'on' : ''} onClick=${() => setMetric(k)}>${l}</button>`)}</div>`}
       ${series.length > 1 && html`<${WeightChart} weights=${series} goal=${metric === 'kg' ? profile.goalKg : null} unit=${metricUnit} label=${metricLabel} />`}
       ${trend != null && html`<p class="small">Andamento delle ultime settimane: <b>${trend > 0 ? '+' : ''}${trend.toFixed(2).replace('.', ',')} kg a settimana</b>.</p>`}
@@ -534,7 +538,7 @@ function ProfileTab({ state, profile, targets, update, updateProfile }) {
         <div><small class="muted">IMC</small><b>${dec(targets.bmi)}</b></div>
       </div>
       <p class="small">Proteine <b>${targets.protein} g</b> · Carboidrati <b>${targets.carbs} g</b> · Grassi <b>${targets.fat} g</b> · Fibre <b>${targets.fiber} g</b></p>
-      <p class="muted small">Calo atteso: circa ${targets.weeklyLoss.toFixed(2).replace('.', ',')} kg a settimana. Metabolismo calcolato con la formula Mifflin-St Jeor; proteine a 1,6 g per kg di peso di riferimento per preservare i muscoli in deficit.</p>
+      <p class="muted small">Calo atteso: circa ${targets.weeklyLoss.toFixed(2).replace('.', ',')} kg a settimana. Metabolismo calcolato con la formula ${targets.bmrMethod}; proteine a 1,6 g per kg di peso di riferimento per preservare i muscoli in deficit.</p>
       ${profile.medical && html`<p class="warn small">Hai indicato condizioni mediche: mostra questo piano al tuo medico prima di seguirlo.</p>`}
     </section>
     <section class="card">
