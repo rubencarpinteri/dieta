@@ -190,14 +190,14 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
   if (state.sync?.hid) {
     const label = { ok: '✓ Sincronizzato', connecting: 'Connessione…', error: 'Offline: sincronizzo appena torna la rete', signedout: 'Sessione scaduta: esci e accedi di nuovo', off: '' }[syncInfo.status];
     const share = () => (navigator.share ? navigator.share({ text: `Codice per l'app Dieta: ${state.sync.hid}` }) : navigator.clipboard?.writeText(state.sync.hid));
-    return html`<section class="card"><h2>Sincronizzazione</h2>
+    return html`<details class="card group"><summary><h3>Sincronizzazione</h3><span class="count">${label}</span></summary>
       <p><b>${label}</b>${syncInfo.at ? html` <small class="muted">ultimo aggiornamento alle ${new Date(syncInfo.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</small>` : ''}</p>
       <p class="small muted">Account: ${state.sync.email}. Le modifiche arrivano sugli altri dispositivi in pochi secondi.</p>
       <p class="small">Per aggiungere un'altra persona (es. tua moglie): sul suo telefono crea un account e inserisci questo codice.</p>
       <p class="code">${state.sync.hid}</p>
       <button class="ghost" onClick=${share}>Condividi il codice</button>
       <button class="ghost" onClick=${() => confirm('Uscire? I dati restano su questo dispositivo ma non verranno più sincronizzati.') && sync.signOut().finally(() => setState((s) => ({ ...s, sync: null })))}>Esci dall'account</button>
-    </section>`;
+    </details>`;
   }
 
   return html`<section class="card"><h2>${compact ? 'Hai un account o un codice?' : 'Sincronizzazione tra dispositivi'}</h2>
@@ -285,7 +285,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v31</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v32</p>
   </section></main>`;
 }
 
@@ -919,17 +919,20 @@ function ProductsTab({ profile, products, updateProfile, update }) {
   return html`
     <div class="segmented"><button class=${filter === 'mine' ? 'on' : ''} onClick=${() => setFilter('mine')}>La mia lista (${approved.size})</button>
       <button class=${filter === 'all' ? 'on' : ''} onClick=${() => setFilter('all')}>Dispensa di casa (${products.length})</button></div>
-    <input class="search" type="search" placeholder="Cerca un prodotto" value=${query} onInput=${(e) => setQuery(e.target.value)} />
-    <button class="primary" onClick=${() => setAdding(true)}><${Icon} name="plus" size=${18} /> Aggiungi un prodotto</button>
+    <div class="search-row">
+      <input class="search" type="search" placeholder="Cerca un prodotto" value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      <button class="ghost icon-only add-btn" aria-label="Aggiungi un prodotto" onClick=${() => setAdding(true)}><${Icon} name="plus" size=${22} /></button>
+    </div>
     ${filter === 'all' && html`<p class="muted small">Spunta ✓ gli alimenti che vuoi nel tuo piano. Gli altri restano in dispensa per chi vive con te.</p>`}
     ${Object.entries(CATEGORIES).map(([cat, label]) => {
       const list = visible.filter((p) => p.category === cat).sort((a, b) => (qualityScore(b).score ?? -1) - (qualityScore(a).score ?? -1));
-      return list.length > 0 && html`<section class="card tight"><h3>${label}</h3>
+      // Categories start closed (one line each); a search opens them all.
+      return list.length > 0 && html`<details class="card tight group" open=${!!q} key=${cat + (q ? ':q' : '')}><summary><h3>${label}</h3><span class="count">${list.length}</span></summary>
         <ul class="plist">${list.map((p) => html`<li>
           <button class="prow" onClick=${() => setDetail(p)}><${ScoreBadge} product=${p} />
             <span class="pname">${p.name}<small class="muted">${r0(p.nutrients.energyKcal)} kcal · ${dec(p.nutrients.protein)} g prot. /100 g${p.flags.length ? ' · ⚠️' : ''}</small></span></button>
           <button class=${'tick' + (approved.has(p.id) ? ' on' : '')} aria-label=${`${p.name}: ${approved.has(p.id) ? 'nella mia lista' : 'non nella mia lista'}`} aria-pressed=${approved.has(p.id)} onClick=${() => toggle(p.id)}><${Icon} name="check" size=${18} /></button>
-        </li>`)}</ul></section>`;
+        </li>`)}</ul></details>`;
     })}
     ${detail && html`<${ProductDetail} product=${detail} onClose=${() => setDetail(null)} />`}
     ${adding && html`<${AddProduct} onClose=${() => setAdding(false)} existing=${products} onAdd=${(prod) => {
@@ -1056,17 +1059,26 @@ function ShoppingTab({ profile, byId, updateProfile }) {
   if (!profile.plan) return html`<section class="card"><p>Genera prima il piano: la lista della spesa si crea da lì.</p></section>`;
   const list = shoppingList(profile.plan, byId);
   const checked = profile.shoppingChecked ?? {};
-  const copy = () => navigator.clipboard?.writeText(list.filter((i) => !checked[i.id]).map((i) => `• ${i.name}: ${i.qty}`).join('\n'));
+  const toggle = (id) => updateProfile((p) => { p.shoppingChecked = { ...p.shoppingChecked, [id]: !checked[id] }; });
+  const toBuy = list.filter((i) => !i.pantry && !checked[i.id]);
+  const done = list.filter((i) => !i.pantry && checked[i.id]);
+  const pantry = list.filter((i) => i.pantry);
+  const copy = () => navigator.clipboard?.writeText(toBuy.map((i) => `• ${i.name}: ${i.qty}`).join('\n'));
+  const row = (i) => html`<li class=${checked[i.id] ? 'done' : ''}><label><input type="checkbox" checked=${!!checked[i.id]} onChange=${() => toggle(i.id)} />
+    <span class="shop-name">${i.name}<small class="muted"><b>${i.main}</b>${i.detail ? ` · ${i.detail}` : ''}</small></span></label></li>`;
   return html`
-    <p class="muted small">Quantità per i 7 giorni del piano. Spunta quello che hai già in casa o nel carrello.</p>
+    <div class="shop-head">
+      <p class="small muted">Per i 7 giorni del piano · <b>${done.length} di ${done.length + toBuy.length}</b> presi</p>
+      <button class="ghost small" onClick=${copy}>Copia lista</button>
+    </div>
     ${Object.entries(CATEGORIES).map(([cat, label]) => {
-      const items = list.filter((i) => i.category === cat);
-      return items.length > 0 && html`<section class="card tight"><h3>${label}</h3><ul class="shop">${items.map((i) => html`
-        <li class=${checked[i.id] ? 'done' : ''}><label><input type="checkbox" checked=${!!checked[i.id]}
-          onChange=${() => updateProfile((p) => { p.shoppingChecked = { ...p.shoppingChecked, [i.id]: !checked[i.id] }; })} />
-          <span>${i.name}<small class="muted">${i.qty}</small></span></label></li>`)}</ul></section>`;
+      const items = toBuy.filter((i) => i.category === cat);
+      return items.length > 0 && html`<section class="card tight"><h3>${label}</h3><ul class="shop">${items.map(row)}</ul></section>`;
     })}
-    <button class="ghost" onClick=${copy}>Copia la lista (per WhatsApp o Note)</button>`;
+    ${toBuy.length === 0 && html`<section class="card"><p>Hai preso tutto 🎉</p></section>`}
+    ${done.length > 0 && html`<details class="card tight group"><summary><h3>Già presi</h3><span class="count">${done.length}</span></summary><ul class="shop">${done.map(row)}</ul></details>`}
+    ${pantry.length > 0 && html`<details class="card tight group"><summary><h3>Da avere in casa</h3><span class="count">${pantry.length}</span></summary>
+      <p class="small muted">Ne serve pochissimo: controlla solo di averli.</p><ul class="shop">${pantry.map(row)}</ul></details>`}`;
 }
 
 // ───────────────────────── Weight ─────────────────────────
@@ -1154,7 +1166,8 @@ function WeightTab({ profile, updateProfile }) {
       ${showBody && html`<div class="grid2">${BODY.map(([k, l, u]) => html`
         <label>${l} (${u})<input type="number" inputmode="decimal" step="0.1" value=${body[k] ?? ''} onInput=${(e) => setBody({ ...body, [k]: e.target.value })} /></label>`)}</div>`}
       <button class="primary" onClick=${add}>Registra</button>
-      <p class="muted small">Pesati alla stessa ora, al mattino a digiuno. Se registri due volte lo stesso giorno, vale l'ultima. Al rientro da un volo è normale vedere 0,5-1 kg in più per i liquidi trattenuti: conta l'andamento, non il singolo giorno.</p>
+      <details class="mini-note"><summary><${Icon} name="lightbulb" size=${15} /> Come pesarti</summary>
+        <p class="muted small">Pesati alla stessa ora, al mattino a digiuno. Se registri due volte lo stesso giorno, vale l'ultima. Al rientro da un volo è normale vedere 0,5-1 kg in più per i liquidi trattenuti: conta l'andamento, non il singolo giorno.</p></details>
     </section>
     ${weights.length > 0 && html`<section class="card">
       <div class="stats">
@@ -1168,11 +1181,11 @@ function WeightTab({ profile, updateProfile }) {
       ${series.length > 1 && html`<${WeightChart} weights=${series} goal=${metric === 'kg' ? profile.goalKg : null} unit=${metricUnit} label=${metricLabel} />`}
       ${trend != null && html`<p class="small">Andamento delle ultime settimane: <b>${trend > 0 ? '+' : ''}${trend.toFixed(2).replace('.', ',')} kg a settimana</b>.</p>`}
     </section>
-    <section class="card tight"><h3>Storico</h3><ul class="plist">${[...weights].reverse().map((w) => html`<li class="wrow">
+    <details class="card tight group"><summary><h3>Storico</h3><span class="count">${weights.length}</span></summary><ul class="plist">${[...weights].reverse().map((w) => html`<li class="wrow">
       <span>${new Date(w.date + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}
         ${BODY.some(([k]) => w[k] != null) && html`<small class="muted">${BODY.filter(([k]) => w[k] != null).map(([k, l, u]) => `${l} ${dec(w[k])}${u === 'livello' ? '' : ' ' + u}`).join(' · ')}</small>`}</span>
       <b>${dec(w.kg)} kg</b>
-      <button class="x danger" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); if (p.weights.length) p.weightKg = p.weights.at(-1).kg; })}><${Icon} name="close" size=${16} /></button></li>`)}</ul></section>`}`;
+      <button class="x danger" aria-label="Elimina" onClick=${() => confirm('Eliminare questa pesata?') && updateProfile((p) => { p.weights = p.weights.filter((x) => x.date !== w.date); if (p.weights.length) p.weightKg = p.weights.at(-1).kg; })}><${Icon} name="close" size=${16} /></button></li>`)}</ul></details>`}`;
 }
 
 /** Least-squares slope over the last 28 days, in kg per week. */
@@ -1230,7 +1243,6 @@ function ProfileTab({ state, profile, targets, update, updateProfile, setState, 
   return html`
     <section class="card">
       <h2>Il tuo fabbisogno</h2>
-      ${targets.warnings.map((w) => html`<p class="warn">${w}</p>`)}
       <div class="stats">
         <div><small class="muted">Metabolismo basale</small><b>${targets.bmr} kcal</b></div>
         <div><small class="muted">Consumo giornaliero</small><b>${targets.tdee} kcal</b></div>
@@ -1238,31 +1250,32 @@ function ProfileTab({ state, profile, targets, update, updateProfile, setState, 
         <div><small class="muted">IMC</small><b>${dec(targets.bmi)}</b></div>
       </div>
       <p class="small">Proteine <b>${targets.protein} g</b> · Carboidrati <b>${targets.carbs} g</b> · Grassi <b>${targets.fat} g</b> · Fibre <b>${targets.fiber} g</b></p>
-      <p class="muted small">Calo atteso: circa ${targets.weeklyLoss.toFixed(2).replace('.', ',')} kg a settimana. Metabolismo calcolato con la formula ${targets.bmrMethod}; proteine a 1,6 g per kg di peso di riferimento per preservare i muscoli in deficit.</p>
       ${profile.medical && html`<p class="warn small">Hai indicato condizioni mediche: mostra questo piano al tuo medico prima di seguirlo.</p>`}
+      <details class="mini-note"><summary><${Icon} name="lightbulb" size=${15} /> Come è calcolato</summary>
+        ${targets.warnings.map((w) => html`<p class="small">${w}</p>`)}
+        <p class="muted small">Calo atteso: circa ${targets.weeklyLoss.toFixed(2).replace('.', ',')} kg a settimana. Metabolismo calcolato con la formula ${targets.bmrMethod}; proteine a 1,6 g per kg di peso di riferimento per preservare i muscoli in deficit.</p>
+        <${WeightSummary} profile=${profile} /></details>
     </section>
-    <section class="card">
-      <h2>Dati</h2>
-      <${WeightSummary} profile=${profile} />
-      <${ProfileFields} p=${draft} set=${setDraft} editWeight=${false} />
-      <${HabitFields} p=${draft} set=${setDraft} />
-      <button class="primary" disabled=${!dirty} onClick=${() => updateProfile((p) => Object.assign(p, draft))}>Salva</button>
-      ${dirty && html`<p class="muted small">Dopo aver salvato, genera un nuovo piano per aggiornare le porzioni.</p>`}
-    </section>
-    <section class="card">
-      <h2>Persone</h2>
+    <details class="card group"><summary><h3>Dati personali</h3><span class="count">${profile.name}</span></summary>
+      <${ProfileFields} p=${draft} set=${setDraft} editWeight=${false} /></details>
+    <details class="card group"><summary><h3>Abitudini e pasti a bordo</h3></summary>
+      <${HabitFields} p=${draft} set=${setDraft} /></details>
+    ${dirty && html`<div class="save-bar" role="region" aria-label="Modifiche non salvate">
+      <button class="ghost" onClick=${() => setDraft(profile)}>Annulla</button>
+      <button class="primary" onClick=${() => updateProfile((p) => Object.assign(p, draft))}>Salva</button>
+    </div>`}
+    <details class="card group"><summary><h3>Persone</h3><span class="count">${state.profiles.length}</span></summary>
       <ul class="plist">${state.profiles.map((p) => html`<li class="wrow"><span>${p.name}${p.id === state.activeId ? ' (attivo)' : ''}</span>
         ${p.id !== state.activeId && html`<button class="ghost small" onClick=${() => update((s) => { s.activeId = p.id; })}>Usa</button>`}</li>`)}</ul>
       <button class="ghost" onClick=${() => update((s) => { s.household.mode = 'coppia'; s.activeId = null; })}><${Icon} name="plus" size=${18} /> Aggiungi una persona</button>
       <p class="muted small">Ogni persona ha la sua lista di prodotti, il suo piano e il suo peso. La dispensa è in comune. Con la sincronizzazione attiva, ognuno usa il proprio telefono.</p>
-    </section>
+    </details>
     <${SyncPanel} state=${state} setState=${setState} syncInfo=${syncInfo} />
-    <section class="card">
-      <h2>Backup</h2>
+    <details class="card group"><summary><h3>Backup</h3></summary>
       <p class="muted small">I dati restano solo su questo dispositivo. Esporta un backup ogni tanto, o per spostarli dal Mac all'iPhone.</p>
       <button class="ghost" onClick=${() => exportJson(state)}>Esporta backup</button>
       <label class="ghost filebtn">Importa backup<input type="file" accept="application/json" onChange=${importFile} /></label>
-    </section>`;
+    </details>`;
 }
 
 render(html`<${App} />`, document.getElementById('app'));

@@ -26,14 +26,18 @@ export function shoppingList(plan, productsById) {
       const product = productsById[id];
       const pack = packGrams(product.quantity);
       const tiny = grams < 30 && ['aromi', 'condimenti'].includes(product.category);
-      let qty = tiny ? 'da avere in dispensa' : formatQty(id, grams);
+      // main: what to put in the cart; detail: how much of it the plan uses.
+      let main = tiny ? 'da avere in casa' : formatQty(id, grams);
+      let detail = '';
       if (pack && !tiny) {
-        const packs = Math.ceil(grams / pack - 0.05);
-        qty = `${packs} ${packs === 1 ? 'confezione' : 'confezioni'} da ${product.quantity} — ne usi ${formatQty(id, grams)}`;
+        const packs = Math.max(1, Math.ceil(grams / pack - 0.05));
+        main = `${packs} ${packs === 1 ? 'confezione' : 'confezioni'} da ${product.quantity}`;
+        detail = `ne usi ${formatQty(id, grams)}`;
       } else if (unitsFor(id).unit && !tiny) {
-        qty = formatQty(id, grams);
+        main = formatQty(id, grams);
       }
-      return { id, name: product.name, category: product.category, grams, qty };
+      const qty = detail ? `${main} (${detail})` : main;
+      return { id, name: product.name, category: product.category, grams, qty, main, detail, pantry: tiny };
     })
     .sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }

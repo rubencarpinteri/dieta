@@ -370,3 +370,28 @@ details.mini-note[open] > summary::after { transform: rotate(90deg); }
 .meal-top button.tag { border: 0; min-height: 0; cursor: pointer; }
 .meal-meta .link { font-size: inherit; }
 @media (prefers-reduced-motion: reduce) { details.mini-note > summary::after { transition: none; } }
+
+/* Collapsible groups: one line when closed (title + count), like a list section you can open. */
+details.group { margin: 12px 0; }
+details.group > summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: var(--tap); color: var(--text); }
+details.group > summary::-webkit-details-marker { display: none; }
+details.group > summary h2, details.group > summary h3 { margin: 0; flex: 1; min-width: 0; }
+details.group > summary .count { color: var(--muted); font-size: .882rem; text-align: right; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+details.group > summary::after { content: '›'; color: var(--muted); font-size: 1.2rem; transition: transform .2s; }
+details.group[open] > summary::after { transform: rotate(90deg); }
+details.group[open] > summary { margin-bottom: 4px; }
+@media (prefers-reduced-motion: reduce) { details.group > summary::after { transition: none; } }
+.search-row { display: flex; gap: 8px; align-items: center; }
+.search-row .search { flex: 1; min-width: 0; }
+.add-btn { flex: none; width: var(--tap); height: var(--tap); padding: 0; display: inline-grid; place-items: center; margin: 0; }
+.shop-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.shop-head p { margin: 0; }
+.shop label { align-items: center; }
+.shop-name { flex: 1; min-width: 0; }
+.shop-name small { display: block; font-size: .882rem; margin-top: 2px; }
+.shop-name small b { color: var(--text); font-weight: 600; }
+.shop-head .ghost { white-space: nowrap; }
+.save-bar { position: sticky; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 5; display: flex; gap: 8px; padding: 8px; margin: 12px 0;
+  border-radius: 999px; background: var(--card); box-shadow: 0 4px 20px rgba(0,0,0,.15); }
+.save-bar button { flex: 1; margin: 0; min-height: var(--tap); }
+@media (min-width: 960px) { .save-bar { bottom: 16px; } }
