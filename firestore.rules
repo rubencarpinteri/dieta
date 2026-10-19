@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Which household an account belongs to: only the account itself.
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /households/{hid} {
+      function signedIn() { return request.auth != null; }
+      function isMember() { return signedIn() && request.auth.uid in resource.data.members; }
+
+      allow read: if isMember();
+      allow create: if signedIn() && request.resource.data.members == [request.auth.uid];
+      // Members change the shared data but cannot remove other members.
+      allow update: if isMember() && request.resource.data.members.hasAll(resource.data.members);
+      // Joining with the code (the household id): the only change allowed is adding yourself.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+        && request.resource.data.members.toSet() == resource.data.members.toSet().union([request.auth.uid].toSet());
+
+      match /profiles/{pid} {
+        allow read, write: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/households/$(hid)).data.members;
+      }
+    }
+  }
+}

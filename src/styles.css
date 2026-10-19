@@ -219,3 +219,8 @@ button:disabled { opacity: .45; cursor: default; }
 .results.alt li > button:first-child { flex: 1; border-top: 0; padding: 10px 0; }
 .results.alt span { display: block; }
 .note-text { color: var(--muted); padding: 0 4px; }
+
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 15px; padding: 10px 12px; background: var(--bg); border: 1px dashed var(--line); border-radius: 10px; word-break: break-all; user-select: all; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--accent); }
+.row > .primary, .row > .ghost { margin-top: 12px; }

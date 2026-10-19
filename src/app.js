@@ -1,4 +1,4 @@
-import { html, render, useState, useEffect, useMemo } from '../vendor/preact-htm.js';
+import { html, render, useState, useEffect, useMemo, useRef } from '../vendor/preact-htm.js';
 import { load, save, exportJson, uid, today, emptyState } from './store.js';
 import { qualityScore } from './lib/scoring.js';
 import { ADDITIVES } from './lib/additives.js';
@@ -13,6 +13,7 @@ import { formatQty } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
 import { parseFitdays } from './lib/fitdays.js';
+import * as sync from './sync.js';
 
 const CATEGORIES = {
   proteine: 'Carne, pesce, uova e salumi', cereali: 'Pasta, riso, pane e cracker', latticini: 'Latte, formaggi e dessert proteici',
@@ -24,6 +25,159 @@ const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 const recipeById = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 const r0 = (n) => Math.round(n);
 const dec = (n) => (Math.round(n * 10) / 10).toLocaleString('it-IT');
+
+// ───────────────────────── Sync ─────────────────────────
+const sharedJson = (s) => JSON.stringify({ mode: s.household.mode, customProducts: s.customProducts });
+
+function stamp(prev, next) {
+  const now = Date.now();
+  const before = Object.fromEntries(prev.profiles.map((p) => [p.id, JSON.stringify(p)]));
+  next.profiles = next.profiles.map((p) => (before[p.id] === JSON.stringify(p) ? p : { ...p, updatedAt: now }));
+  if (sharedJson(prev) !== sharedJson(next)) next.sharedUpdatedAt = now;
+  return next;
+}
+
+/** Keeps this device and Firestore in step. Remote changes are applied without re-stamping. */
+function useSync(state, setState) {
+  const [info, setInfo] = useState({ status: state.sync?.hid ? 'connecting' : 'off' });
+  const sent = useRef({});
+  const ready = useRef({ profiles: false, shared: false });
+  const hid = state.sync?.hid;
+
+  useEffect(() => {
+    if (!hid || !sync.syncAvailable()) { setInfo({ status: 'off' }); return undefined; }
+    let stopListen = () => {};
+    let stopUser = () => {};
+    let alive = true;
+    sent.current = {};
+    ready.current = { profiles: false, shared: false };
+    setInfo({ status: 'connecting' });
+    sync.onUser(async (user) => {
+      stopListen();
+      stopListen = () => {};
+      if (!alive) return;
+      if (!user || user.uid !== state.sync.uid) { setInfo({ status: 'signedout' }); return; }
+      const off = await sync.listen(hid, {
+        onProfiles: (docs) => {
+          setState((s) => {
+            const profiles = [...s.profiles];
+            for (const d of docs) {
+              const i = profiles.findIndex((p) => p.id === d.data.id);
+              const local = profiles[i];
+              if (!local || (d.data.updatedAt ?? 0) > (local.updatedAt ?? 0)) {
+                if (i < 0) profiles.push(d.data); else profiles[i] = d.data;
+              }
+              sent.current[d.data.id] = JSON.stringify(d.data);
+            }
+            const mine = profiles.find((p) => p.owner === s.sync?.uid) ?? profiles[0];
+            const activeId = profiles.some((p) => p.id === s.activeId) ? s.activeId : mine?.id ?? null;
+            return { ...s, profiles, activeId };
+          });
+          ready.current.profiles = true;
+          setInfo((x) => ({ ...x, status: 'ok', at: Date.now() }));
+        },
+        onShared: (d) => {
+          setState((s) => ((d.updatedAt ?? 0) > (s.sharedUpdatedAt ?? 0)
+            ? { ...s, household: { ...s.household, mode: d.mode ?? s.household.mode }, customProducts: d.customProducts ?? [], sharedUpdatedAt: d.updatedAt }
+            : s));
+          sent.current.shared = JSON.stringify({ mode: d.mode, customProducts: d.customProducts ?? [] });
+          ready.current.shared = true;
+        },
+        onError: () => setInfo({ status: 'error' }),
+      });
+      if (alive) stopListen = off; else off();
+    }).then((unsub) => { if (alive) stopUser = unsub; else unsub(); })
+      .catch(() => setInfo({ status: 'error' }));
+    return () => { alive = false; stopListen(); stopUser(); };
+  }, [hid]);
+
+  // Send local changes a moment after they happen (only once the remote state has been read).
+  useEffect(() => {
+    if (!hid || !ready.current.profiles || !ready.current.shared) return undefined;
+    const t = setTimeout(async () => {
+      try {
+        for (const p of state.profiles) {
+          const json = JSON.stringify(p);
+          if (sent.current[p.id] !== json) { await sync.pushProfile(hid, p); sent.current[p.id] = json; }
+        }
+        const shared = sharedJson(state);
+        if (sent.current.shared !== shared) { await sync.pushShared(hid, state); sent.current.shared = shared; }
+        setInfo({ status: 'ok', at: Date.now() });
+      } catch {
+        setInfo({ status: 'error' });
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [state, hid, info.status]);
+
+  return info;
+}
+
+function SyncPanel({ state, setState, syncInfo, compact = false }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  if (!sync.syncAvailable()) return null;
+
+  const run = async (fn) => { setBusy(true); setMsg(''); try { await fn(); } catch (e) { setMsg(sync.syncError(e)); } setBusy(false); };
+  const connect = (hid, u, replaceLocal) => setState((s) => ({
+    ...s, sync: { uid: u.uid, email: u.email, hid },
+    profiles: replaceLocal ? [] : s.profiles.map((p) => ({ ...p, owner: p.owner ?? u.uid })),
+    activeId: replaceLocal ? null : s.activeId,
+  }));
+
+  const login = (create) => run(async () => {
+    const u = await sync.signIn(email, password, create);
+    setPassword('');
+    if (code.trim()) {
+      // Joining someone else's household: this device's profiles (if any) are added to it.
+      await sync.joinHousehold(u.uid, code.trim());
+      connect(code.trim(), u, false);
+      return;
+    }
+    const hid = await sync.householdOf(u.uid);
+    if (hid) {
+      const replace = state.profiles.length > 0 && confirm('Questo account ha già dei dati sincronizzati. Vuoi usare quelli e sostituire i dati di questo dispositivo?\n\nAnnulla = tieni anche i dati di questo dispositivo e uniscili.');
+      connect(hid, u, replace);
+    } else {
+      // First time for this account: its household starts from this device's data (possibly empty).
+      const owned = { ...state, profiles: state.profiles.map((p) => ({ ...p, owner: p.owner ?? u.uid, updatedAt: p.updatedAt ?? Date.now() })) };
+      connect(await sync.createHousehold(u.uid, owned), u, false);
+    }
+  });
+
+  if (state.sync?.hid) {
+    const label = { ok: '✓ Sincronizzato', connecting: 'Connessione…', error: 'Offline: sincronizzo appena torna la rete', signedout: 'Sessione scaduta: esci e accedi di nuovo', off: '' }[syncInfo.status];
+    const share = () => (navigator.share ? navigator.share({ text: `Codice per l'app Dieta: ${state.sync.hid}` }) : navigator.clipboard?.writeText(state.sync.hid));
+    return html`<section class="card"><h2>Sincronizzazione</h2>
+      <p><b>${label}</b>${syncInfo.at ? html` <small class="muted">ultimo aggiornamento alle ${new Date(syncInfo.at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</small>` : ''}</p>
+      <p class="small muted">Account: ${state.sync.email}. Le modifiche arrivano sugli altri dispositivi in pochi secondi.</p>
+      <p class="small">Per aggiungere un'altra persona (es. tua moglie): sul suo telefono crea un account e inserisci questo codice.</p>
+      <p class="code">${state.sync.hid}</p>
+      <button class="ghost" onClick=${share}>Condividi il codice</button>
+      <button class="ghost" onClick=${() => confirm('Uscire? I dati restano su questo dispositivo ma non verranno più sincronizzati.') && sync.signOut().finally(() => setState((s) => ({ ...s, sync: null })))}>Esci dall'account</button>
+    </section>`;
+  }
+
+  return html`<section class="card"><h2>${compact ? 'Hai già un account?' : 'Sincronizzazione tra dispositivi'}</h2>
+    <p class="small muted">${compact
+      ? 'Accedi per ritrovare profilo, piano e pesate che usi già su un altro dispositivo.'
+      : 'Crea un account per avere gli stessi dati su Mac e iPhone, aggiornati da soli. Lo stesso account si usa su tutti i tuoi dispositivi.'}</p>
+    <label>Email<input type="email" autocomplete="username" value=${email} onInput=${(e) => setEmail(e.target.value)} /></label>
+    <label>Password<input type="password" autocomplete=${compact ? 'current-password' : 'new-password'} value=${password} onInput=${(e) => setPassword(e.target.value)} /></label>
+    <div class="row">
+      <button class="primary" disabled=${busy || !email || !password} onClick=${() => login(false)}>Accedi</button>
+      <button class="ghost" disabled=${busy || !email || password.length < 6} onClick=${() => login(true)}>Crea account</button>
+    </div>
+    ${msg && html`<p class="warn small">${msg}</p>`}
+    <details><summary class="small">Mi hanno dato un codice per unirmi</summary>
+      <label>Codice (lascialo vuoto se non ne hai uno)<input value=${code} onInput=${(e) => setCode(e.target.value)} /></label>
+      <p class="small muted">Con il codice entri nella dispensa di chi te l'ha dato: ognuno ha comunque il suo profilo e il suo piano. Poi premi "Accedi" o "Crea account".</p>
+    </details>
+  </section>`;
+}
 
 // ───────────────────────── App shell ─────────────────────────
 function App() {
@@ -40,18 +194,24 @@ function App() {
   const products = useMemo(() => (base ? [...base, ...state.customProducts] : []), [base, state.customProducts]);
   const byId = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const profile = state.profiles.find((p) => p.id === state.activeId);
-  const update = (fn) => setState((s) => { const copy = structuredClone(s); return fn(copy) ?? copy; });
+  // Every local change stamps what it touched, so sync knows which version is the newest.
+  const update = (fn) => setState((s) => { const copy = structuredClone(s); return stamp(s, fn(copy) ?? copy); });
+  const syncInfo = useSync(state, setState);
   const updateProfile = (fn) => update((s) => { fn(s.profiles.find((p) => p.id === s.activeId), s); });
 
   if (error) return html`<main class="center"><p>${error}</p></main>`;
   if (!base) return html`<main class="center"><p class="muted">Caricamento…</p></main>`;
-  if (!profile) return html`<${Onboarding} state=${state} base=${base} onDone=${(p, mode) => update((s) => {
+  if (!profile && state.sync?.hid && syncInfo.status === 'connecting' && !state.profiles.length) {
+    return html`<main class="center"><p class="muted">Scarico i tuoi dati…</p></main>`;
+  }
+  if (!profile) return html`<${Onboarding} state=${state} base=${base} setState=${setState} update=${update} syncInfo=${syncInfo} onDone=${(p, mode) => update((s) => {
     if (mode) s.household.mode = mode;
+    if (s.sync?.uid) p.owner = s.sync.uid;
     s.profiles.push(p); s.activeId = p.id;
   })} onImport=${(data) => update(() => data)} onCancel=${state.profiles.length ? () => update((s) => { s.activeId = s.profiles[0].id; }) : null} />`;
 
   const targets = dailyTargets({ ...profile, age: ageFrom(profile.birthYear) });
-  const ctx = { state, profile, products, byId, targets, update, updateProfile };
+  const ctx = { state, profile, products, byId, targets, update, updateProfile, setState, syncInfo };
   const TABS = [['piano', '🗓️', 'Piano'], ['prodotti', '🛒', 'Prodotti'], ['spesa', '📝', 'Spesa'], ['peso', '⚖️', 'Peso'], ['profilo', '👤', 'Profilo']];
 
   return html`
@@ -88,7 +248,7 @@ const blankProfile = () => ({
   approved: [], dayTypes: Array(7).fill('casa'), plan: null, weights: [], shoppingChecked: {},
 });
 
-function Onboarding({ state, base, onDone, onCancel, onImport }) {
+function Onboarding({ state, base, onDone, onCancel, onImport, setState, syncInfo }) {
   const first = state.profiles.length === 0;
   const [step, setStep] = useState(first ? 0 : 1);
   const [mode, setMode] = useState(state.household.mode);
@@ -106,6 +266,7 @@ function Onboarding({ state, base, onDone, onCancel, onImport }) {
       <label class="choice"><input type="radio" checked=${mode === 'coppia'} onChange=${() => setMode('coppia')} /> <span><b>Due persone</b> (coppia o coinquilini): dispensa in comune, piani personali</span></label>
       <button class="primary" onClick=${() => setStep(1)}>Continua</button>
     </section>
+    <${SyncPanel} state=${state} setState=${setState} syncInfo=${syncInfo} compact=${true} />
     <section class="card">
       <h2>Usi già l'app su un altro dispositivo?</h2>
       <p class="small muted">Sull'altro dispositivo vai in Profilo → Esporta backup e manda il file qui (su iPhone con AirDrop o salvandolo in File). Poi sceglilo qui sotto: ritrovi profilo, prodotti, piano e pesate.</p>
@@ -652,7 +813,7 @@ function WeightSummary({ profile }) {
   <p class="muted small">Il peso si aggiorna dalla scheda Peso: il fabbisogno viene ricalcolato sull'ultima pesata.</p>`;
 }
 
-function ProfileTab({ state, profile, targets, update, updateProfile }) {
+function ProfileTab({ state, profile, targets, update, updateProfile, setState, syncInfo }) {
   const [draft, setDraft] = useState(profile);
   useEffect(() => setDraft(profile), [profile.id]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(profile);
@@ -691,8 +852,9 @@ function ProfileTab({ state, profile, targets, update, updateProfile }) {
       <ul class="plist">${state.profiles.map((p) => html`<li class="wrow"><span>${p.name}${p.id === state.activeId ? ' (attivo)' : ''}</span>
         ${p.id !== state.activeId && html`<button class="ghost small" onClick=${() => update((s) => { s.activeId = p.id; })}>Usa</button>`}</li>`)}</ul>
       <button class="ghost" onClick=${() => update((s) => { s.household.mode = 'coppia'; s.activeId = null; })}>＋ Aggiungi una persona</button>
-      <p class="muted small">Ogni persona ha la sua lista di prodotti, il suo piano e il suo peso. La dispensa è in comune. La sincronizzazione tra due telefoni arriverà nella fase 2.</p>
+      <p class="muted small">Ogni persona ha la sua lista di prodotti, il suo piano e il suo peso. La dispensa è in comune. Con la sincronizzazione attiva, ognuno usa il proprio telefono.</p>
     </section>
+    <${SyncPanel} state=${state} setState=${setState} syncInfo=${syncInfo} />
     <section class="card">
       <h2>Backup</h2>
       <p class="muted small">I dati restano solo su questo dispositivo. Esporta un backup ogni tanto, o per spostarli dal Mac all'iPhone.</p>
