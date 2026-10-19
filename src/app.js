@@ -135,8 +135,10 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
     setPassword('');
     if (code.trim()) {
       // Joining someone else's household: this device's profiles (if any) are added to it.
-      await sync.joinHousehold(u.uid, code.trim());
-      connect(code.trim(), u, false);
+      // The shared message is "Codice per l'app Dieta: <id>": keep only the 20-character id.
+      const hid = code.match(/[A-Za-z0-9]{20}/)?.[0] ?? code.trim();
+      await sync.joinHousehold(u.uid, hid);
+      connect(hid, u, false);
       return;
     }
     const hid = await sync.householdOf(u.uid);
@@ -163,21 +165,23 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
     </section>`;
   }
 
-  return html`<section class="card"><h2>${compact ? 'Hai già un account?' : 'Sincronizzazione tra dispositivi'}</h2>
+  return html`<section class="card"><h2>${compact ? 'Hai un account o un codice?' : 'Sincronizzazione tra dispositivi'}</h2>
     <p class="small muted">${compact
-      ? 'Accedi per ritrovare profilo, piano e pesate che usi già su un altro dispositivo.'
+      ? 'Accedi per ritrovare i dati che usi già su un altro dispositivo, oppure entra nella dispensa di casa con il codice che ti hanno dato.'
       : 'Crea un account per avere gli stessi dati su Mac e iPhone, aggiornati da soli. Lo stesso account si usa su tutti i tuoi dispositivi.'}</p>
-    <label>Email<input type="email" autocomplete="username" value=${email} onInput=${(e) => setEmail(e.target.value)} /></label>
-    <label>Password<input type="password" autocomplete=${compact ? 'current-password' : 'new-password'} value=${password} onInput=${(e) => setPassword(e.target.value)} /></label>
-    <div class="row">
-      <button class="primary" disabled=${busy || !email || !password} onClick=${() => login(false)}>Accedi</button>
-      <button class="ghost" disabled=${busy || !email || password.length < 6} onClick=${() => login(true)}>Crea account</button>
-    </div>
-    ${msg && html`<p class="warn small">${msg}</p>`}
-    <details><summary class="small">Mi hanno dato un codice per unirmi</summary>
-      <label>Codice (lascialo vuoto se non ne hai uno)<input value=${code} onInput=${(e) => setCode(e.target.value)} /></label>
-      <p class="small muted">Con il codice entri nella dispensa di chi te l'ha dato: ognuno ha comunque il suo profilo e il suo piano. Poi premi "Accedi" o "Crea account".</p>
+    <details open=${!!code}><summary class="small">Mi hanno dato un codice per unirmi</summary>
+      <label>Codice<input value=${code} onInput=${(e) => setCode(e.target.value)} autocapitalize="off" autocorrect="off" spellcheck=${false} /></label>
+      <p class="small muted">Con il codice entri nella dispensa di chi te l'ha dato: ognuno ha comunque il suo profilo e il suo piano.</p>
     </details>
+    ${code.trim() && html`<p class="small"><b>Ora scegli la tua email e una password qui sotto, poi premi "Crea account"</b> (o "Accedi" se hai già un account dell'app).</p>`}
+    <label>Email<input type="email" autocomplete="username" value=${email} onInput=${(e) => setEmail(e.target.value)} /></label>
+    <label>Password${!compact || code.trim() ? ' (almeno 6 caratteri)' : ''}<input type="password" autocomplete=${compact && !code.trim() ? 'current-password' : 'new-password'} value=${password} onInput=${(e) => setPassword(e.target.value)} /></label>
+    <div class="row">
+      <button class="primary" disabled=${busy || !email || !password} onClick=${() => login(false)}>${busy ? '…' : 'Accedi'}</button>
+      <button class=${code.trim() ? 'primary' : 'ghost'} disabled=${busy || !email || password.length < 6} onClick=${() => login(true)}>Crea account</button>
+    </div>
+    ${(!email || !password) && html`<p class="small muted">I pulsanti si attivano quando hai scritto email e password.</p>`}
+    ${msg && html`<p class="warn small">${msg}</p>`}
   </section>`;
 }
 
