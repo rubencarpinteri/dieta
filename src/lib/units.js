@@ -1,5 +1,6 @@
 // How a product is measured in the kitchen. step = smallest sensible increment in grams.
 // unit: a natural portion shown next to the grams (e.g. "2 uova").
+// fine: smaller step used when adjusting a dish by hand (e.g. part of a pouch, weighed).
 export const UNITS = {
   uova: { step: 50, unit: ['uovo', 'uova', 50] },
   banana: { step: 60, unit: ['banana', 'banane', 120] },
@@ -18,8 +19,8 @@ export const UNITS = {
   pro_high_cacao: { step: 200, unit: ['vasetto', 'vasetti', 200] },
   tonno_rio_mare: { step: 80, unit: ['scatoletta', 'scatolette', 80] },
   wurstel_tobias: { step: 50, unit: ['würstel', 'würstel', 50] },
-  pizza_buitoni_creazione: { step: 100 },
-  riso_nero_pronto: { step: 125, unit: ['mezza busta', 'mezze buste', 125] },
+  pizza_buitoni_creazione: { step: 100, fine: 25 },
+  riso_nero_pronto: { step: 125, fine: 25, unit: ['mezza busta', 'mezze buste', 125] },
   olio_evo: { step: 5, spoon: true },
   burro_conad: { step: 5 },
   sale: { step: 1 },

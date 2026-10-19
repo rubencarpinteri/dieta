@@ -243,7 +243,7 @@ export function rebalanceDay(day, targets, split, productsById) {
   const flexible = [];
   for (const [meal, m] of Object.entries(day.meals)) {
     if (!m) continue;
-    if (m.done || m.external || m.skipped?.length || m.leftover) { fixed.kcal += m.totals.kcal; fixed.protein += m.totals.protein; }
+    if (m.done || m.external || m.skipped?.length || m.custom || m.leftover) { fixed.kcal += m.totals.kcal; fixed.protein += m.totals.protein; }
     else flexible.push(meal);
   }
   for (const e of day.extras ?? []) { fixed.kcal += e.kcal; fixed.protein += e.protein ?? 0; }
@@ -339,6 +339,122 @@ export const toggleSkip = (meal, productId, productsById) => (day) => {
   const skipped = m.skipped?.includes(productId) ? m.skipped.filter((x) => x !== productId) : [...(m.skipped ?? []), productId];
   const eaten = m.items.filter((i) => !skipped.includes(i.p));
   return setMeal(meal, { ...m, skipped, totals: nutrientsOf(eaten, productsById) })(day);
+};
+
+// ── Missing ingredients: swap with something similar, or make up with the rest of the dish ──
+
+/** What a product mainly brings: protein, carb, fat, veg or other (spices, salt…). */
+export function productRole(product) {
+  if (['verdure'].includes(product.category)) return 'veg';
+  if (['aromi'].includes(product.category) || product.unrated) return 'other';
+  const n = product.nutrients;
+  const kcal = n.protein * 4 + n.carbs * 4 + n.fat * 9;
+  if (!kcal) return 'other';
+  const proteinShare = (n.protein * 4) / kcal;
+  // Tuna in oil, cheeses and cured meats get many calories from fat but are used as the protein of a dish.
+  if (proteinShare >= 0.35 || (['proteine', 'latticini'].includes(product.category) && proteinShare >= 0.2)) return 'protein';
+  if ((n.fat * 9) / kcal >= 0.6) return 'fat';
+  if ((n.carbs * 4) / kcal >= 0.5) return 'carb';
+  return 'other';
+}
+
+const ROLE_LABEL = { protein: 'proteine', carb: 'carboidrati', fat: 'grassi', veg: 'verdure' };
+export const roleLabel = (role) => ROLE_LABEL[role] ?? '';
+
+/**
+ * Products from the approved list that can stand in for a missing one, with the grams that give the
+ * same protein (for protein foods), the same calories (carbs, fats) or the same weight (vegetables).
+ */
+// Products seen in at least one recipe for each meal: a sweet pudding is not offered in place of chicken at lunch.
+const usedFor = (() => {
+  const map = {};
+  for (const r of RECIPES) for (const m of r.meals) for (const i of r.ingredients) (map[i.p] ??= new Set()).add(m);
+  return map;
+})();
+// Products only ever used as a small, fixed part of a dish (sauce, flour) are not offered as a main swap.
+const mainSomewhere = new Set(RECIPES.flatMap((r) => r.ingredients.filter((i) => i.role !== 'fixed').map((i) => i.p)));
+const NO_SWAP = new Set(['pan_grattato']); // only a coating
+
+export function substitutes(mealObj, productId, approved, productsById, meal = null) {
+  const item = mealObj.items.find((i) => i.p === productId);
+  const old = productsById[productId];
+  const role = productRole(old);
+  if (!item || role === 'other') return { role, list: [] };
+  const inMeal = new Set(mealObj.items.map((i) => i.p));
+  const oldN = old.nutrients;
+  const slots = meal === 'bordo' ? ['pranzo', 'cena'] : meal ? [meal] : null;
+  // Products added by hand are not in any recipe: offer them everywhere.
+  const known = (p) => Boolean(usedFor[p.id]);
+  const fitsSlot = (p) => !known(p) || ((!slots || slots.some((m) => usedFor[p.id].has(m))) && mainSomewhere.has(p.id) && !NO_SWAP.has(p.id));
+  const list = [...approved].map((id) => productsById[id]).filter((p) => p && !inMeal.has(p.id) && productRole(p) === role && fitsSlot(p))
+    .map((p) => {
+      const n = p.nutrients;
+      let g = role === 'protein' ? (item.g * oldN.protein) / n.protein : role === 'veg' ? item.g : (item.g * oldN.energyKcal) / n.energyKcal;
+      const step = unitsFor(p.id).step;
+      g = Math.max(step, Math.round(g / step) * step);
+      const delta = { kcal: (n.energyKcal * g - oldN.energyKcal * item.g) / 100, protein: (n.protein * g - oldN.protein * item.g) / 100 };
+      return { product: p, g, delta };
+    })
+    // Skip swaps that would add far more calories than the original (e.g. 100 g of parmesan for chicken).
+    .filter((x) => x.g <= item.g * 4 && x.delta.kcal <= Math.max(120, (oldN.energyKcal * item.g) / 100 * 0.8))
+    .sort((a, b) => Math.abs(a.delta.kcal) + Math.abs(a.delta.protein) * 8 - (Math.abs(b.delta.kcal) + Math.abs(b.delta.protein) * 8));
+  return { role, list: list.slice(0, 8) };
+}
+
+const withTotals = (m, productsById) => ({ ...m, totals: nutrientsOf(m.items.filter((i) => !(m.skipped ?? []).includes(i.p)), productsById) });
+
+/** Put `newId` (grams `g`) in place of `oldId` in a meal. */
+export const substitute = (meal, oldId, newId, g, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items.map((i) => (i.p === oldId ? { ...i, p: newId, g, replaces: oldId, originalG: i.g } : i));
+  const skipped = (m.skipped ?? []).filter((x) => x !== oldId);
+  return setMeal(meal, withTotals({ ...m, items, skipped, custom: true }, productsById))(day);
+};
+
+/** Undo a substitution: the original ingredient comes back. */
+export const revertSubstitute = (meal, newId, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items.map((i) => (i.p === newId && i.replaces ? (({ replaces, originalG, ...rest }) => ({ ...rest, p: replaces, g: originalG }))(i) : i));
+  const custom = items.some((i) => i.replaces) || !!m.boosted;
+  return setMeal(meal, withTotals({ ...m, items, custom }, productsById))(day);
+};
+
+/** How the meal would change if the rest of the dish made up for the removed ingredients. */
+export function compensation(mealObj, productsById) {
+  const skipped = mealObj.skipped ?? [];
+  const full = nutrientsOf(mealObj.items, productsById);
+  const eatenItems = mealObj.items.filter((i) => !skipped.includes(i.p));
+  const eaten = nutrientsOf(eatenItems, productsById);
+  // Grow the main foods of the dish (not oil, butter or seasonings).
+  const grows = (i) => i.role !== 'fixed' && ['carb', 'protein', 'veg'].includes(productRole(productsById[i.p]));
+  const flexible = eatenItems.filter(grows);
+  const flexKcal = nutrientsOf(flexible, productsById).kcal;
+  // Nothing worth making up for (e.g. only the salad is missing).
+  if (!skipped.length || flexKcal <= 0 || full.kcal - eaten.kcal < 60) return null;
+  const factor = Math.min(2.5, 1 + (full.kcal - eaten.kcal) / flexKcal);
+  const scaled = (round) => mealObj.items.map((i) => {
+    if (skipped.includes(i.p) || !grows(i)) return i;
+    const step = unitsFor(i.p).fine ?? i.step ?? unitsFor(i.p).step;
+    return { ...i, g: Math.max(step, round((i.g * factor) / step) * step), boostedFrom: i.g };
+  });
+  // Round to kitchen units, but not so far up that the dish ends with many more calories than before.
+  let items = scaled(Math.round);
+  if (nutrientsOf(items.filter((i) => !skipped.includes(i.p)), productsById).kcal > full.kcal * 1.08) items = scaled(Math.floor);
+  const after = nutrientsOf(items.filter((i) => !skipped.includes(i.p)), productsById);
+  return { items, before: full, after };
+}
+
+export const compensate = (meal, productsById) => (day) => {
+  const m = day.meals[meal];
+  const c = compensation(m, productsById);
+  if (!c) return day;
+  return setMeal(meal, withTotals({ ...m, items: c.items, boosted: true, custom: true }, productsById))(day);
+};
+
+export const undoCompensate = (meal, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items.map((i) => (i.boostedFrom != null ? (({ boostedFrom, ...rest }) => ({ ...rest, g: boostedFrom }))(i) : i));
+  return setMeal(meal, withTotals({ ...m, items, boosted: false, custom: items.some((i) => i.replaces) }, productsById))(day);
 };
 
 export const setDone = (meal, done) => (day) => setMeal(meal, { ...day.meals[meal], done })(day);

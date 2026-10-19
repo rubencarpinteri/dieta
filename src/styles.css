@@ -225,3 +225,6 @@ button:disabled { opacity: .45; cursor: default; }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--accent); }
 .row > .primary, .row > .ghost { margin-top: 12px; }
+.missing { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.missing .actions { margin-top: 6px; }
+.items li b small { font-weight: 400; text-align: right; }
