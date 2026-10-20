@@ -12,6 +12,7 @@ import { RECIPES } from './lib/recipes.js';
 import { formatQty, unitsFor, addDefault, pieceUnit } from './lib/units.js';
 import { shoppingList } from './lib/shopping.js';
 import { searchProducts, productByBarcode, fromOff, manualProduct } from './lib/off.js';
+import { searchCrea, fromCrea } from './lib/crea.js';
 import { parseFitdays } from './lib/fitdays.js';
 import * as sync from './sync.js';
 import { Icon } from './icons.js';
@@ -290,7 +291,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v37</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v38</p>
   </section></main>`;
 }
 
@@ -1053,9 +1054,9 @@ function ProductDetail({ product: p, onClose }) {
 }
 
 function AddProduct({ onClose, onAdd, existing }) {
-  const [mode, setMode] = useState('codice');
+  const [mode, setMode] = useState('fresco');
+  const [fresh, setFresh] = useState([]);
   const [text, setText] = useState('');
-  const [brand, setBrand] = useState('');
   const [results, setResults] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -1065,22 +1066,30 @@ function AddProduct({ onClose, onAdd, existing }) {
   const run = async (fn) => { setBusy(true); setErr(''); try { await fn(); } catch (e) { setErr(e.message || 'Errore di rete.'); } setBusy(false); };
   const lookupBarcode = () => run(async () => setPicked(fromOff(await productByBarcode(text.trim()))));
   const search = () => run(async () => {
-    const found = await searchProducts(brand, text);
+    const found = await searchProducts(text);
     setResults(found);
-    if (!found.length) setErr('Nessun prodotto trovato: prova a scrivere meno parole nel nome.');
+    if (!found.length) setErr('Nessun prodotto trovato: prova con meno parole, per esempio solo nome e marca.');
   });
+  const searchFresh = (q) => { setText(q); searchCrea(q).then(setFresh).catch(() => setErr('Elenco non disponibile: riapri l\'app quando sei online.')); };
+  const switchTo = (m) => { setMode(m); setErr(''); setText(''); setResults([]); setFresh([]); };
 
   return html`<${Sheet} title="Aggiungi un prodotto" onClose=${onClose}>
-    <div class="segmented"><button class=${mode === 'codice' ? 'on' : ''} onClick=${() => { setMode('codice'); setErr(''); }}>Codice a barre</button>
-      <button class=${mode === 'cerca' ? 'on' : ''} onClick=${() => { setMode('cerca'); setErr(''); }}>Cerca</button>
-      <button class=${mode === 'manuale' ? 'on' : ''} onClick=${() => setMode('manuale')}>Dall'etichetta</button></div>
+    <div class="segmented">${[['fresco', 'Freschi'], ['codice', 'Codice'], ['cerca', 'Cerca'], ['manuale', 'Etichetta']].map(([k, l]) => html`
+      <button class=${mode === k ? 'on' : ''} onClick=${() => switchTo(k)}>${l}</button>`)}</div>
     ${picked ? html`
-      <p><b>${picked.name}</b><br /><small class="muted">${picked.quantity ?? ''} · ${r0(picked.nutrients.energyKcal)} kcal/100 g</small></p>
+      <p><b>${picked.name}</b><br /><small class="muted">${picked.quantity ? `${picked.quantity} · ` : ''}${r0(picked.nutrients.energyKcal)} kcal/100 g${picked.source === 'CREA' ? ' · tabelle CREA' : ''}</small></p>
       <label>Categoria<select value=${picked.category} onChange=${(e) => setPicked({ ...picked, category: e.target.value })}>
         ${Object.entries(CATEGORIES).map(([k, l]) => html`<option value=${k}>${l}</option>`)}</select></label>
       ${existing.some((x) => x.id === picked.id || (picked.barcode && x.barcode === picked.barcode)) && html`<p class="muted small">È già in dispensa: verrà aggiunto alla tua lista.</p>`}
       <button class="primary" onClick=${() => onAdd(existing.find((x) => picked.barcode && x.barcode === picked.barcode) ?? picked)}>Aggiungi alla mia lista</button>
       <button class="ghost" onClick=${() => setPicked(null)}>Indietro</button>`
+    : mode === 'fresco' ? html`
+      <p class="small muted">Frutta, verdura, legumi, carne e pesce freschi, senza codice a barre. Valori ufficiali delle tabelle CREA, per 100 g.</p>
+      <input class="search" type="search" placeholder="es. pere, zucchine, ceci" value=${text} onInput=${(e) => searchFresh(e.target.value)} />
+      ${err && html`<p class="warn small">${err}</p>`}
+      ${text.trim().length > 1 && !fresh.length && html`<p class="small muted">Nessun alimento con questo nome: prova al singolare o al plurale (pera / pere).</p>`}
+      <ul class="results alt">${fresh.map((f) => html`<li><button onClick=${() => setPicked(fromCrea(f))}>
+        <span><b>${f.name}</b><small class="muted">${r0(f.kcal)} kcal · ${dec(f.protein)} g prot. · ${dec(f.fiber)} g fibre /100 g</small></span></button></li>`)}</ul>`
     : mode === 'codice' ? html`
       <form onSubmit=${(e) => { e.preventDefault(); lookupBarcode(); }}>
         <label>Numero sotto il codice a barre<input inputmode="numeric" placeholder="es. 8004030044005" value=${text} onInput=${(e) => setText(e.target.value.replace(/\D/g, ''))} /></label>
@@ -1088,9 +1097,8 @@ function AddProduct({ onClose, onAdd, existing }) {
       ${err && html`<p class="warn small">${err}</p>`}`
     : mode === 'cerca' ? html`
       <form onSubmit=${(e) => { e.preventDefault(); search(); }}>
-        <div class="row"><label>Marca<input placeholder="es. Rio Mare" value=${brand} onInput=${(e) => setBrand(e.target.value)} /></label>
-          <label>Nome (facoltativo)<input placeholder="es. tonno" value=${text} onInput=${(e) => setText(e.target.value)} /></label></div>
-        <button class="primary" disabled=${busy || brand.trim().length < 2}>${busy ? 'Cerco…' : 'Cerca'}</button></form>
+        <label>Nome e marca<input placeholder="es. tonno rio mare" value=${text} onInput=${(e) => setText(e.target.value)} /></label>
+        <button class="primary" disabled=${busy || text.trim().length < 2}>${busy ? 'Cerco… (può volerci qualche secondo)' : 'Cerca su Open Food Facts'}</button></form>
       ${err && html`<p class="warn small">${err}</p>`}
       <ul class="results">${results.map((r) => html`<li><button onClick=${() => setPicked(fromOff(r))}>
         ${r.image_front_small_url && html`<img src=${r.image_front_small_url} alt="" loading="lazy" />`}

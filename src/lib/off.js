@@ -6,22 +6,31 @@ const FIELDS = 'code,product_name,product_name_it,brands,quantity,nutriscore_gra
 
 const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const UNAVAILABLE = 'Open Food Facts non risponde in questo momento (limita le ricerche). Riprova tra un minuto, usa il codice a barre, oppure per frutta, verdura e alimenti sfusi usa "Freschi".';
+
 /**
- * Search by brand, then filter by name words on our side.
- * (The Open Food Facts full-text search does not allow calls from web pages, so brand + name is the reliable option.)
+ * Free-text search ("tonno rio mare"), products sold in Italy first; falls back to the brand search.
+ * Open Food Facts limits searches and then answers without the headers browsers need, which looks
+ * like a network error: so one retry after a pause, then a clear message.
  */
-export async function searchProducts(brand, name = '') {
-  const url = `https://world.openfoodfacts.org/api/v2/search?${new URLSearchParams({ brands_tags: slug(brand), page_size: '100', sort_by: 'unique_scans_n', fields: FIELDS })}`;
-  let res;
-  try {
-    res = await fetch(url);
-  } catch {
-    res = null;
+export async function searchProducts(query) {
+  const words = slug(query).split('-').filter(Boolean);
+  const attempts = [
+    `https://world.openfoodfacts.org/cgi/search.pl?${new URLSearchParams({ search_terms: query.trim(), search_simple: '1', action: 'process', json: '1', page_size: '50', fields: FIELDS, tagtype_0: 'countries', tag_contains_0: 'contains', tag_0: 'italy' })}`,
+    `https://world.openfoodfacts.org/api/v2/search?${new URLSearchParams({ brands_tags: words[0] ?? '', page_size: '100', sort_by: 'unique_scans_n', fields: FIELDS })}`,
+  ];
+  let products = null;
+  for (let i = 0; i < attempts.length * 2 && !products; i++) {
+    try {
+      const res = await fetch(attempts[i % attempts.length]);
+      if (res.ok) products = (await res.json()).products ?? [];
+    } catch { /* limited or offline: try the next way */ }
+    if (!products) await wait(1200);
   }
-  if (!res?.ok) throw new Error('La ricerca di Open Food Facts è momentaneamente non disponibile. Riprova più tardi, oppure usa il codice a barre o l\'etichetta.');
-  const words = slug(name).split('-').filter(Boolean);
-  const products = (await res.json()).products ?? [];
-  return products.filter((p) => { const n = slug(`${p.product_name_it ?? ''} ${p.product_name ?? ''}`); return words.every((w) => n.includes(w)); }).slice(0, 25);
+  if (!products) throw new Error(UNAVAILABLE);
+  const score = (p) => { const n = slug(`${p.product_name_it ?? ''} ${p.product_name ?? ''} ${p.brands ?? ''}`); return words.filter((w) => n.includes(w)).length; };
+  return products.filter((p) => score(p) > 0).sort((a, b) => score(b) - score(a)).slice(0, 25);
 }
 
 export async function productByBarcode(code) {
