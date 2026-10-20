@@ -31,9 +31,11 @@ const ERRORS = {
   'auth/missing-password': 'Inserisci la password.',
   'auth/weak-password': 'La password deve avere almeno 6 caratteri.',
   'auth/email-already-in-use': 'Esiste già un account con questa email: usa "Accedi".',
-  'auth/invalid-credential': 'Email o password non corrette.',
+  'auth/invalid-credential': 'Email o password non corrette. Se non ricordi la password, tocca "Password dimenticata?".',
+  'auth/invalid-login-credentials': 'Email o password non corrette. Se non ricordi la password, tocca "Password dimenticata?".',
   'auth/user-not-found': 'Email o password non corrette.',
-  'auth/wrong-password': 'Email o password non corrette.',
+  'auth/wrong-password': 'Email o password non corrette. Se non ricordi la password, tocca "Password dimenticata?".',
+  'auth/user-disabled': 'Questo account è stato disattivato.',
   'auth/too-many-requests': 'Troppi tentativi: riprova tra qualche minuto.',
   'auth/network-request-failed': 'Nessuna connessione: riprova quando sei online.',
   'permission-denied': 'Accesso negato: controlla il codice.',
@@ -44,6 +46,13 @@ export async function signIn(email, password, create) {
   const { auth, au } = await firebase();
   const fn = create ? auth.createUserWithEmailAndPassword : auth.signInWithEmailAndPassword;
   return (await fn(au, email.trim(), password)).user;
+}
+
+/** Email with a link to choose a new password (sent by Firebase, in Italian). */
+export async function resetPassword(email) {
+  const { auth, au } = await firebase();
+  au.languageCode = 'it';
+  await auth.sendPasswordResetEmail(au, email.trim());
 }
 
 export async function signOut() {

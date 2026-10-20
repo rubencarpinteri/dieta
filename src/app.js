@@ -156,9 +156,10 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [sent, setSent] = useState(false);
   if (!sync.syncAvailable()) return null;
 
-  const run = async (fn) => { setBusy(true); setMsg(''); try { await fn(); } catch (e) { setMsg(sync.syncError(e)); } setBusy(false); };
+  const run = async (fn) => { setBusy(true); setMsg(''); setSent(false); try { await fn(); } catch (e) { setMsg(sync.syncError(e)); } setBusy(false); };
   const connect = (hid, u, replaceLocal) => setState((s) => {
     const profiles = replaceLocal ? [] : s.profiles.filter((p) => !p.owner || p.owner === u.uid).map((p) => ({ ...p, owner: p.owner ?? u.uid }));
     const mine = profiles.find((p) => p.owner === u.uid);
@@ -216,7 +217,11 @@ function SyncPanel({ state, setState, syncInfo, compact = false }) {
       <button class=${code.trim() ? 'primary' : 'ghost'} disabled=${busy || !email || password.length < 6} onClick=${() => login(true)}>Crea account</button>
     </div>
     ${(!email || !password) && html`<p class="small muted">I pulsanti si attivano quando hai scritto email e password.</p>`}
-    ${msg && html`<p class="warn small">${msg}</p>`}
+    ${msg && html`<p class=${sent ? 'note-inline small' : 'warn small'}>${msg}</p>`}
+    <button class="link" disabled=${busy} onClick=${() => {
+      if (!email.trim()) { setSent(false); setMsg('Scrivi prima la tua email qui sopra, poi tocca di nuovo "Password dimenticata?".'); return; }
+      run(async () => { await sync.resetPassword(email); setSent(true); setMsg(`Ti ho mandato un'email a ${email.trim()} con il link per scegliere una nuova password. Controlla anche lo spam.`); });
+    }}>Password dimenticata?</button>
   </section>`;
 }
 
@@ -285,7 +290,7 @@ function Downloading({ syncInfo, setState }) {
     ${slow && html`<p class="small">Ci sta mettendo troppo. Controlla di essere online, poi riprova.</p>`}
     <button class=${slow ? 'primary' : 'ghost'} onClick=${() => location.reload()}>Riprova</button>
     <button class="ghost" onClick=${restart}>Esci e accedi di nuovo</button>
-    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v36</p>
+    <p class="small muted">Dettagli: ${syncInfo.stage ?? '-'} · ${Math.round((Date.now() - (syncInfo.since ?? Date.now())) / 1000)} s${syncInfo.detail ? ` · ${syncInfo.detail}` : ''} · v37</p>
   </section></main>`;
 }
 
