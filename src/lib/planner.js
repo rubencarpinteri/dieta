@@ -645,6 +645,31 @@ export const addMeal = (base, dish, label) => (day) => {
   return setMeal(`${base}_${n}`, { ...dish, custom: true, ...(label ? { label } : {}) })(day);
 };
 
+/**
+ * Put a meal of your own in the day. With `replace`, it takes the place of that slot's meal (e.g. today's
+ * lunch), which is kept underneath to bring it back; otherwise it is added as one more meal.
+ */
+export const placeMeal = (base, dish, name, replace) => (day) => {
+  const old = day.meals[base];
+  if (replace && old) return setMeal(base, { ...dish, custom: true, ...(name ? { name } : {}), replaced: old })(day);
+  return addMeal(base, dish, name)(day);
+};
+
+/** A meal known only by its estimated calories (e.g. a burger out): macros as given, or a typical split. */
+export function kcalMeal(name, kcal, macros = {}) {
+  const est = { protein: (kcal * 0.15) / 4, carbs: (kcal * 0.45) / 4, fat: (kcal * 0.4) / 9 };
+  const pick = (k) => (macros[k] > 0 ? macros[k] : est[k]);
+  const external = { name, kcal, protein: pick('protein'), carbs: pick('carbs'), fat: pick('fat'), estimated: !(macros.protein > 0 && macros.carbs > 0 && macros.fat > 0), byHand: true };
+  return { recipeId: null, items: [], external, totals: presetTotals(external) };
+}
+
+/** Delete an ingredient line for good (the second step after striking it through). */
+export const deleteItem = (meal, productId, productsById) => (day) => {
+  const m = day.meals[meal];
+  const items = m.items.filter((i) => i.p !== productId);
+  return setMeal(meal, withTotals({ ...m, items, skipped: (m.skipped ?? []).filter((x) => x !== productId), custom: true }, productsById))(day);
+};
+
 /** Remove any meal, planned ones too: the others share its calories. It is kept aside to bring it back. */
 export const removeMeal = (meal) => (day) => {
   const meals = { ...day.meals };
